@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { MapPin, Loader2 } from "lucide-react";
+import { MapPin, Loader2, LocateFixed } from "lucide-react";
+import { toast } from "sonner";
 import { motion } from "framer-motion";
 
 const interests = [
@@ -18,6 +19,40 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
   const [location, setLocation] = useState("");
   const [duration, setDuration] = useState(30);
   const [selected, setSelected] = useState<string[]>([]);
+  const [geoLoading, setGeoLoading] = useState(false);
+
+  const handleGeolocate = () => {
+    if (!navigator.geolocation) {
+      toast.error("La géolocalisation n'est pas supportée par votre navigateur");
+      return;
+    }
+    setGeoLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=fr`
+          );
+          const data = await res.json();
+          const parts = [
+            data.address?.road,
+            data.address?.city || data.address?.town || data.address?.village,
+          ].filter(Boolean);
+          setLocation(parts.join(", ") || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+        } catch {
+          setLocation(`${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`);
+        } finally {
+          setGeoLoading(false);
+        }
+      },
+      () => {
+        toast.error("Impossible d'obtenir votre position");
+        setGeoLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   const toggleInterest = (id: string) => {
     setSelected((prev) =>
@@ -53,15 +88,26 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
           <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
             Localisation
           </label>
-          <div className="relative">
-            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-primary" size={20} />
-            <input
-              type="text"
-              placeholder="Où êtes-vous ?"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              className="w-full bg-secondary rounded-xl pl-11 pr-4 py-3.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-sm"
-            />
+          <div className="relative flex gap-2">
+            <div className="relative flex-1">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-primary" size={20} />
+              <input
+                type="text"
+                placeholder="Où êtes-vous ?"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                className="w-full bg-secondary rounded-xl pl-11 pr-4 py-3.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-sm"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleGeolocate}
+              disabled={geoLoading}
+              className="flex items-center justify-center w-12 bg-secondary rounded-xl text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+              title="Me localiser"
+            >
+              {geoLoading ? <Loader2 size={20} className="animate-spin" /> : <LocateFixed size={20} />}
+            </button>
           </div>
         </div>
 
