@@ -76,7 +76,8 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
         transition={{ duration: 0.6 }}
         className="w-full max-w-md flex flex-col gap-8"
       >
-        <div className="text-center space-y-2">
+        <div className="text-center space-y-3 flex flex-col items-center">
+          <img src={logo} alt="Microbalade" className="h-16 w-auto" />
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
             Micro<span className="text-primary">balade</span>
           </h1>
