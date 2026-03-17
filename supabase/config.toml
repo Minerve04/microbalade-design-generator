@@ -1,0 +1,4 @@
+project_id = "jeceuubezficfxwzejsr"
+
+[functions.generate-balade]
+verify_jwt = false

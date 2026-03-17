@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MapPin } from "lucide-react";
+import { MapPin, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 
 const interests = [
@@ -11,9 +11,10 @@ const interests = [
 
 interface HomeScreenProps {
   onGenerate: (data: { location: string; duration: number; interests: string[] }) => void;
+  loading?: boolean;
 }
 
-const HomeScreen = ({ onGenerate }: HomeScreenProps) => {
+const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
   const [location, setLocation] = useState("");
   const [duration, setDuration] = useState(30);
   const [selected, setSelected] = useState<string[]>([]);
@@ -39,7 +40,6 @@ const HomeScreen = ({ onGenerate }: HomeScreenProps) => {
         transition={{ duration: 0.6 }}
         className="w-full max-w-md flex flex-col gap-8"
       >
-        {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
             Micro<span className="text-primary">balade</span>
@@ -49,7 +49,6 @@ const HomeScreen = ({ onGenerate }: HomeScreenProps) => {
           </p>
         </div>
 
-        {/* Location */}
         <div className="glass-card rounded-2xl p-4">
           <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
             Localisation
@@ -66,7 +65,6 @@ const HomeScreen = ({ onGenerate }: HomeScreenProps) => {
           </div>
         </div>
 
-        {/* Duration Slider */}
         <div className="glass-card rounded-2xl p-4">
           <div className="flex items-center justify-between mb-3">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -89,7 +87,6 @@ const HomeScreen = ({ onGenerate }: HomeScreenProps) => {
           </div>
         </div>
 
-        {/* Interests */}
         <div className="space-y-3">
           <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Envie du moment
@@ -116,13 +113,20 @@ const HomeScreen = ({ onGenerate }: HomeScreenProps) => {
           </div>
         </div>
 
-        {/* CTA */}
         <motion.button
           whileTap={{ scale: 0.97 }}
+          disabled={loading}
           onClick={() => onGenerate({ location, duration, interests: selected })}
-          className="w-full bg-primary text-primary-foreground font-semibold text-base py-4 rounded-2xl shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all active:shadow-md"
+          className="w-full bg-primary text-primary-foreground font-semibold text-base py-4 rounded-2xl shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all active:shadow-md disabled:opacity-70 flex items-center justify-center gap-2"
         >
-          Générer ma Microbalade
+          {loading ? (
+            <>
+              <Loader2 size={20} className="animate-spin" />
+              Génération en cours…
+            </>
+          ) : (
+            "Générer ma Microbalade"
+          )}
         </motion.button>
       </motion.div>
     </div>

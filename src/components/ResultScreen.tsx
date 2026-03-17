@@ -1,29 +1,24 @@
-import { MapPin, Navigation, ArrowLeft } from "lucide-react";
+import { useState } from "react";
+import { MapPin, Navigation, ArrowLeft, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 
-const steps = [
-  {
-    title: "La Cour des Miracles",
-    description:
-      "Commencez par cette ancienne cour cachée, autrefois refuge des marginaux de Paris. Les façades médiévales racontent une histoire fascinante de résilience urbaine.",
-  },
-  {
-    title: "Le Passage du Désir",
-    description:
-      "Empruntez ce passage couvert du XIXe siècle, orné de mosaïques oubliées et de vitraux Art Nouveau. Un véritable voyage dans le temps en plein cœur de la ville.",
-  },
-  {
-    title: "Le Jardin Suspendu",
-    description:
-      "Terminez votre balade dans ce jardin secret perché sur un ancien viaduc. Une oasis de verdure avec une vue imprenable sur les toits parisiens.",
-  },
-];
+export interface BaladeStep {
+  title: string;
+  description: string;
+}
+
+export interface BaladeResult {
+  steps: BaladeStep[];
+  google_maps_url: string;
+}
 
 interface ResultScreenProps {
+  result: BaladeResult;
+  duration: number;
   onBack: () => void;
 }
 
-const ResultScreen = ({ onBack }: ResultScreenProps) => {
+const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
   return (
     <div className="min-h-screen bg-background flex flex-col pb-8">
       {/* Map placeholder */}
@@ -34,7 +29,6 @@ const ResultScreen = ({ onBack }: ResultScreenProps) => {
             <span className="text-sm font-medium">Carte interactive</span>
           </div>
         </div>
-        {/* Decorative dots for map feel */}
         <svg className="absolute inset-0 w-full h-full opacity-[0.04]" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <pattern id="dots" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
@@ -43,7 +37,6 @@ const ResultScreen = ({ onBack }: ResultScreenProps) => {
           </defs>
           <rect width="100%" height="100%" fill="url(#dots)" />
         </svg>
-        {/* Back button */}
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={onBack}
@@ -53,7 +46,6 @@ const ResultScreen = ({ onBack }: ResultScreenProps) => {
         </motion.button>
       </div>
 
-      {/* Content */}
       <div className="px-5 -mt-4 relative z-10 flex flex-col gap-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -62,12 +54,13 @@ const ResultScreen = ({ onBack }: ResultScreenProps) => {
           className="glass-card rounded-2xl p-5"
         >
           <h2 className="text-lg font-bold text-foreground mb-1">Votre Microbalade</h2>
-          <p className="text-sm text-muted-foreground">3 étapes · ~30 min à pied</p>
+          <p className="text-sm text-muted-foreground">
+            {result.steps.length} étapes · ~{duration} min à pied
+          </p>
         </motion.div>
 
-        {/* Steps */}
         <div className="flex flex-col gap-3">
-          {steps.map((step, index) => (
+          {result.steps.map((step, index) => (
             <motion.div
               key={index}
               initial={{ opacity: 0, y: 20 }}
@@ -88,8 +81,10 @@ const ResultScreen = ({ onBack }: ResultScreenProps) => {
           ))}
         </div>
 
-        {/* Google Maps CTA */}
-        <motion.button
+        <motion.a
+          href={result.google_maps_url}
+          target="_blank"
+          rel="noopener noreferrer"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.5 }}
@@ -98,7 +93,7 @@ const ResultScreen = ({ onBack }: ResultScreenProps) => {
         >
           <Navigation size={18} />
           Ouvrir l'itinéraire dans Google Maps
-        </motion.button>
+        </motion.a>
       </div>
     </div>
   );
