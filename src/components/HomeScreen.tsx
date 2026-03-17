@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MapPin, Loader2 } from "lucide-react";
+import { MapPin, Loader2, LocateFixed } from "lucide-react";
 import { motion } from "framer-motion";
 
 const interests = [
