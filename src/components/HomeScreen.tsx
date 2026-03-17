@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { MapPin, Loader2, LocateFixed } from "lucide-react";
+import { toast } from "sonner";
 import { motion } from "framer-motion";
 
 const interests = [
