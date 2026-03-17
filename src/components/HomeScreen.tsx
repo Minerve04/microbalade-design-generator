@@ -1,4 +1,5 @@
 import { useState } from "react";
+import logo from "@/assets/logo.png";
 import { MapPin, Loader2, LocateFixed } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
