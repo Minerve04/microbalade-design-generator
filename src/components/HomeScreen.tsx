@@ -18,6 +18,40 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
   const [location, setLocation] = useState("");
   const [duration, setDuration] = useState(30);
   const [selected, setSelected] = useState<string[]>([]);
+  const [geoLoading, setGeoLoading] = useState(false);
+
+  const handleGeolocate = () => {
+    if (!navigator.geolocation) {
+      toast.error("La géolocalisation n'est pas supportée par votre navigateur");
+      return;
+    }
+    setGeoLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=fr`
+          );
+          const data = await res.json();
+          const parts = [
+            data.address?.road,
+            data.address?.city || data.address?.town || data.address?.village,
+          ].filter(Boolean);
+          setLocation(parts.join(", ") || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+        } catch {
+          setLocation(`${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`);
+        } finally {
+          setGeoLoading(false);
+        }
+      },
+      () => {
+        toast.error("Impossible d'obtenir votre position");
+        setGeoLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   const toggleInterest = (id: string) => {
     setSelected((prev) =>
