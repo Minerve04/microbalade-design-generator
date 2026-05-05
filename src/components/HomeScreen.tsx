@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import logo from "@/assets/logo.png";
 import { MapPin, Loader2, LocateFixed } from "lucide-react";
 import { toast } from "sonner";
@@ -176,6 +177,15 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
             "Générer ma Microbalade"
           )}
         </motion.button>
+
+        <footer className="text-center pt-2">
+          <Link
+            to="/confidentialite"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Politique de confidentialité
+          </Link>
+        </footer>
       </motion.div>
     </div>
   );
