@@ -1,35 +1,46 @@
+```html
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+    <title>30 min dans le Centre historique de Saint-Omer - Architecture flamande et fortifications</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>30 min dans le centre historique de Saint-Omer - Microbalade</title>
-    <meta name="description" content="Découvrez l'architecture flamande et les fortifications de Saint-Omer en 30 minutes. Balade insolite dans un joyau historique méconnu du Nord.">
-    
-    <meta property="og:title" content="30 min dans le centre historique de Saint-Omer - Microbalade">
-    <meta property="og:description" content="Découvrez l'architecture flamande et les fortifications de Saint-Omer en 30 minutes. Balade insolite dans un joyau historique méconnu du Nord.">
-    <meta property="og:url" content="https://microbalade.fr/balade-centre-historique-saint-omer">
+    <meta name="description" content="Découvrez l'architecture flamande et les fortifications du centre historique de Saint-Omer en 30 minutes. Balade guidée gratuite avec Microbalade.">
+    <meta property="og:title" content="30 min dans le Centre historique de Saint-Omer - Architecture flamande et fortifications">
+    <meta property="og:description" content="Découvrez l'architecture flamande et les fortifications du centre historique de Saint-Omer en 30 minutes. Balade guidée gratuite avec Microbalade.">
     <meta property="og:type" content="website">
+    <meta property="og:url" content="https://microbalade.fr/balade-centre-historique-saint-omer">
     <meta property="og:image" content="https://microbalade.fr/images/saint-omer-centre-historique.jpg">
-    <meta property="og:site_name" content="Microbalade.fr">
+    <meta property="og:site_name" content="Microbalade">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="30 min dans le Centre historique de Saint-Omer - Architecture flamande et fortifications">
+    <meta name="twitter:description" content="Découvrez l'architecture flamande et les fortifications du centre historique de Saint-Omer en 30 minutes. Balade guidée gratuite avec Microbalade.">
+    <meta name="twitter:image" content="https://microbalade.fr/images/saint-omer-centre-historique.jpg">
     
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
         "@type": "TouristAttraction",
-        "name": "Centre historique de Saint-Omer",
+        "name": "Centre historique de Saint-Omer - Architecture flamande et fortifications",
         "description": "Balade de 30 minutes à travers l'architecture flamande et les fortifications du centre historique de Saint-Omer",
         "url": "https://microbalade.fr/balade-centre-historique-saint-omer",
         "address": {
             "@type": "PostalAddress",
             "addressLocality": "Saint-Omer",
+            "addressRegion": "Hauts-de-France",
             "addressCountry": "FR"
         },
-        "touristType": ["Architecture", "Histoire", "Patrimoine"],
+        "geo": {
+            "@type": "GeoCoordinates",
+            "latitude": "50.7481",
+            "longitude": "2.2581"
+        },
+        "touristType": "Families, History Enthusiasts, Architecture Lovers",
+        "isAccessibleForFree": true,
         "estimatedDuration": "PT30M"
     }
     </script>
-    
+
     <style>
         * {
             margin: 0;
@@ -52,45 +63,52 @@
         
         h1 {
             color: #1a7a4a;
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
+            font-size: 2.2em;
+            margin-bottom: 20px;
             text-align: center;
         }
         
         h2 {
             color: #1a7a4a;
-            font-size: 1.8rem;
-            margin-top: 2rem;
-            margin-bottom: 1rem;
+            font-size: 1.5em;
+            margin: 30px 0 15px 0;
             border-bottom: 2px solid #1a7a4a;
-            padding-bottom: 0.5rem;
+            padding-bottom: 5px;
+        }
+        
+        h3 {
+            color: #1a7a4a;
+            font-size: 1.2em;
+            margin: 20px 0 10px 0;
+        }
+        
+        p {
+            margin-bottom: 15px;
+            text-align: justify;
         }
         
         .intro {
-            font-size: 1.2rem;
-            text-align: center;
-            margin-bottom: 2rem;
-            font-style: italic;
-            color: #555;
+            font-size: 1.1em;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         
         .section {
-            margin-bottom: 2rem;
             background: white;
-            padding: 1.5rem;
+            padding: 25px;
+            margin-bottom: 25px;
             border-radius: 8px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         
-        .highlight-item {
-            margin-bottom: 1.5rem;
-            padding-left: 1rem;
+        .anecdote {
+            background: #f5f0e8;
+            padding: 15px;
             border-left: 4px solid #1a7a4a;
-        }
-        
-        .highlight-item h3 {
-            color: #1a7a4a;
-            margin-bottom: 0.5rem;
+            margin: 15px 0;
         }
         
         .cta-button {
@@ -100,28 +118,27 @@
             padding: 15px 30px;
             text-decoration: none;
             border-radius: 5px;
-            font-size: 1.2rem;
-            font-weight: bold;
+            font-size: 1.2em;
             text-align: center;
-            margin: 2rem auto;
-            max-width: 400px;
+            margin: 30px auto;
+            max-width: 350px;
             transition: background-color 0.3s;
         }
         
         .cta-button:hover {
-            background-color: #145a37;
+            background-color: #145a36;
         }
         
         .info-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-top: 1rem;
+            gap: 15px;
+            margin-top: 15px;
         }
         
         .info-item {
             background: #f5f0e8;
-            padding: 1rem;
+            padding: 15px;
             border-radius: 5px;
             text-align: center;
         }
@@ -129,60 +146,66 @@
         .info-item strong {
             color: #1a7a4a;
             display: block;
-            margin-bottom: 0.5rem;
+            margin-bottom: 5px;
         }
         
         footer {
             text-align: center;
-            margin-top: 3rem;
-            padding-top: 2rem;
-            border-top: 1px solid #ddd;
+            padding: 30px 0;
             color: #666;
+            border-top: 1px solid #ddd;
+            margin-top: 40px;
         }
         
-        @media (max-width: 768px) {
-            h1 {
-                font-size: 2rem;
-            }
-            
+        @media (max-width: 600px) {
             .container {
                 padding: 15px;
+            }
+            
+            h1 {
+                font-size: 1.8em;
+            }
+            
+            .section {
+                padding: 20px;
             }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>30 minutes au cœur du Saint-Omer historique</h1>
+        <h1>30 minutes dans le Centre historique de Saint-Omer</h1>
         
         <div class="intro">
-            <p>Plongez dans l'atmosphère unique d'une cité qui fut la capitale spirituelle du Nord de la France. Entre façades flamandes colorées et vestiges de fortifications, Saint-Omer révèle ses secrets d'architecture et d'histoire à chaque coin de rue.</p>
+            <p>Plongez au cœur d'un patrimoine architectural exceptionnel où se mêlent l'élégance flamande et la puissance des fortifications séculaires. Cette balade de 30 minutes vous révélera les secrets d'une ville qui fut jadis l'une des plus prospères du nord de la France.</p>
         </div>
 
         <div class="section">
             <h2>3 choses insolites à découvrir</h2>
             
-            <div class="highlight-item">
-                <h3>Les maisons à pignons à gradins</h3>
-                <p>Ces façades en escalier typiquement flamandes cachent une astuce : chaque "marche" permettait aux ramoneurs de nettoyer les cheminées depuis l'extérieur. La maison du 17 rue Saint-Bertin présente encore cette architecture du XVIe siècle parfaitement conservée.</p>
+            <div class="anecdote">
+                <h3>🏛️ La Basilique Notre-Dame aux dimensions surprenantes</h3>
+                <p>Saviez-vous que la basilique Notre-Dame de Saint-Omer possède la plus haute voûte de style gothique rayonnant du nord de la France ? Ses 23 mètres de hauteur cachent également un secret : l'horloge astronomique du XVIe siècle qui indique encore aujourd'hui les phases de lune et les fêtes religieuses mobiles.</p>
             </div>
-            
-            <div class="highlight-item">
-                <h3>La tour Graveaux, dernier témoin des remparts</h3>
-                <p>Cette tour ronde de 1340 est l'unique vestige visible des 28 tours qui protégeaient Saint-Omer. Son nom vient de "grève" car elle surveillait le port fluvial où accostaient les bateaux de commerce flamands chargés de draps et d'épices.</p>
+
+            <div class="anecdote">
+                <h3>🏰 Les remparts invisibles de Vauban</h3>
+                <p>Promenez-vous le long des boulevards circulaires : vous marchez sur l'ancien tracé des fortifications de Vauban ! Détruites au XIXe siècle, ces murailles ont laissé place à une ceinture verte, mais leurs fondations dorment encore sous vos pieds. Quelques bastions subsistent, camouflés dans les jardins privés.</p>
             </div>
-            
-            <div class="highlight-item">
-                <h3>Les pavés de grès de la Grand-Place</h3>
-                <p>Ces pierres proviennent des carrières d'Éperlecques, exploitées depuis le Moyen Âge. Leur particularité ? Elles changent de couleur selon la météo : grises par temps sec, elles deviennent dorées sous la pluie grâce aux oxydes de fer qu'elles contiennent.</p>
+
+            <div class="anecdote">
+                <h3>🏘️ L'hôtel Sandelin et son mystérieux souterrain</h3>
+                <p>Cet élégant hôtel particulier du XVIIIe siècle cache un réseau de souterrains qui reliait autrefois les grandes demeures bourgeoises. Construit par une riche famille de négociants, il témoigne de l'âge d'or commercial de Saint-Omer quand la ville était un port fluvial majeur.</p>
             </div>
         </div>
 
         <div class="section">
             <h2>L'histoire méconnue</h2>
-            <p>Au XIIe siècle, Saint-Omer était plus riche que Paris ! Cette prospérité, la ville la devait à sa position stratégique entre la Flandre et l'Artois, mais surtout à l'abbaye de Saint-Bertin qui en fit un carrefour commercial européen. Les moines avaient créé un système révolutionnaire : ils échangeaient les draps flamands contre les vins de Bordeaux, les épices d'Orient et même l'argent des mines allemandes.</p>
+            <p>Au Moyen Âge, Saint-Omer n'était pas française mais flamande ! Capitale du comté d'Artois, elle rivalisait avec Bruges et Gand par sa richesse. Ses marchands sillonnaient l'Europe, vendant les draps fins produits dans ses ateliers. Cette prospérité explique la magnificence de son architecture : chaque pierre raconte l'histoire de cette bourgeoisie audacieuse.</p>
             
-            <p>La cathédrale Notre-Dame, joyau gothique du XIIIe siècle, témoigne encore de cette richesse passée. Ses voûtes de 30 mètres de haut abritent un trésor unique : l'unique exemplaire complet d'un manuscrit de Charlemagne. Mais c'est dans ses soubassements que se cache le plus grand mystère : un réseau de galeries souterraines qui reliait autrefois tous les bâtiments religieux de la ville, créant une véritable cité sous la cité.</p>
+            <p>Mais c'est Louis XIV qui transformera définitivement la ville. En 1677, après la conquête française, il confie à Vauban le soin de faire de Saint-Omer une place forte imprenable face aux Pays-Bas espagnols. L'ingénieur royal rase des quartiers entiers pour édifier ses murailles en étoile. Paradoxalement, ces destructions préserveront le centre historique des extensions industrielles du XIXe siècle !</p>
+            
+            <p>Aujourd'hui, flâner dans ces rues pavées, c'est voyager entre deux époques : l'opulence flamande médiévale et l'art militaire français classique, dans un dialogue architectural unique en Europe du Nord.</p>
         </div>
 
         <div class="section">
@@ -194,24 +217,27 @@
                 </div>
                 <div class="info-item">
                     <strong>Accessibilité</strong>
-                    Centre piéton, accessible PMR
+                    Centre-ville accessible, quelques pavés
                 </div>
                 <div class="info-item">
                     <strong>Meilleure saison</strong>
-                    Toute l'année, idéal au printemps
+                    Toute l'année, magique en automne
                 </div>
                 <div class="info-item">
                     <strong>Point de départ</strong>
-                    Cathédrale Notre-Dame
+                    Place Victor Hugo
                 </div>
             </div>
         </div>
 
-        <a href="https://microbalade.fr" class="cta-button">Générer ma balade personnalisée →</a>
+        <a href="https://microbalade.fr" class="cta-button">
+            Générer ma balade personnalisée →
+        </a>
 
         <footer>
-            <p>&copy; 2024 Microbalade.fr - Découvrez le patrimoine local autrement</p>
+            <p>© 2024 Microbalade - Découvrez votre patrimoine local</p>
         </footer>
     </div>
 </body>
 </html>
+```
