@@ -19,14 +19,13 @@ Pour chaque étape, rédige un titre accrocheur et exactement deux phrases d'ane
 Tu dois répondre UNIQUEMENT en JSON valide avec ce format exact, sans texte avant ni après :
 {
   "steps": [
-    { "title": "...", "description": "..." },
-    { "title": "...", "description": "..." },
-    { "title": "...", "description": "..." }
-  ],
-  "google_maps_url": "https://www.google.com/maps/dir/Point+de+départ/Point+1/Point+2/Point+3/Point+de+départ/?dirflg=w"
+    { "title": "...", "description": "...", "place": "Nom précis du lieu + ville" },
+    { "title": "...", "description": "...", "place": "Nom précis du lieu + ville" },
+    { "title": "...", "description": "...", "place": "Nom précis du lieu + ville" }
+  ]
 }
 
-Remplace les espaces par des + dans l'URL Google Maps. Ne propose aucune introduction ni conclusion.`;
+Le champ "place" doit être une adresse ou un nom de lieu suffisamment précis pour être trouvé sur Google Maps (ex: "Cour de l'Hôtel Sandelin, Saint-Omer"). Ne propose aucune introduction ni conclusion.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -92,7 +91,7 @@ serve(async (req) => {
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
 
-    let parsed;
+    let parsed: { steps: Array<{ title: string; description: string; place?: string }> };
     try {
       parsed = JSON.parse(content);
     } catch {
@@ -100,9 +99,19 @@ serve(async (req) => {
       throw new Error("Invalid AI response format");
     }
 
-    return new Response(JSON.stringify(parsed), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // Build a guaranteed-walking Google Maps URL server-side using the official Directions API format
+    const origin = encodeURIComponent(location);
+    const waypoints = (parsed.steps || [])
+      .map((s) => s.place || s.title)
+      .map((p) => encodeURIComponent(p))
+      .join("|");
+
+    const google_maps_url = `https://www.google.com/maps/dir/?api=1&travelmode=walking&origin=${origin}&destination=${origin}&waypoints=${waypoints}`;
+
+    return new Response(
+      JSON.stringify({ steps: parsed.steps, google_maps_url }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   } catch (e) {
     console.error("generate-balade error:", e);
     return new Response(
