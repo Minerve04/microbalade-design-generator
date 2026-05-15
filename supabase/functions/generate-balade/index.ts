@@ -103,21 +103,26 @@ serve(async (req) => {
     // Resolve every point to precise coordinates.
     // If any point cannot be geocoded, we refuse to build a Google Maps link
     // so the app never falls back to an ambiguous route that could default to driving.
-    const geocode = async (q: string): Promise<string | null> => {
-      try {
-        const r = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=fr&q=${encodeURIComponent(q)}`,
-          { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } }
-        );
-        if (!r.ok) return null;
-        const j = await r.json();
-        if (Array.isArray(j) && j[0]?.lat && j[0]?.lon) {
-          return `${j[0].lat},${j[0].lon}`;
+    const geocode = async (q: string, context?: string): Promise<string | null> => {
+      const candidates = [q, context ? `${q}, ${context}` : null].filter(Boolean) as string[];
+
+      for (const candidate of candidates) {
+        try {
+          const r = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=fr&q=${encodeURIComponent(candidate)}`,
+            { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } }
+          );
+          if (!r.ok) continue;
+          const j = await r.json();
+          if (Array.isArray(j) && j[0]?.lat && j[0]?.lon) {
+            return `${j[0].lat},${j[0].lon}`;
+          }
+        } catch {
+          continue;
         }
-        return null;
-      } catch {
-        return null;
       }
+
+      return null;
     };
 
     const originResolved = await geocode(location);
@@ -128,8 +133,9 @@ serve(async (req) => {
       );
     }
 
+    const routeContext = location.includes(",") ? location.split(",").slice(-1)[0].trim() : location;
     const waypointsResolved = await Promise.all(
-      (parsed.steps || []).map((s) => geocode(s.place || s.title))
+      (parsed.steps || []).map((s) => geocode(s.place || s.title, routeContext))
     );
     if (waypointsResolved.some((point) => !point)) {
       return new Response(
