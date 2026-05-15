@@ -99,14 +99,37 @@ serve(async (req) => {
       throw new Error("Invalid AI response format");
     }
 
-    // Build a guaranteed-walking Google Maps URL server-side using the official Directions API format
-    const origin = encodeURIComponent(location);
-    const waypoints = (parsed.steps || [])
-      .map((s) => s.place || s.title)
-      .map((p) => encodeURIComponent(p))
-      .join("|");
+    // Geocode each place via Nominatim to get lat/lng coordinates.
+    // Using coordinates instead of free-text place names ensures Google Maps
+    // resolves the route deterministically and respects travelmode=walking.
+    const geocode = async (q: string): Promise<string> => {
+      try {
+        const r = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`,
+          { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } }
+        );
+        if (!r.ok) return q;
+        const j = await r.json();
+        if (Array.isArray(j) && j[0]?.lat && j[0]?.lon) {
+          return `${j[0].lat},${j[0].lon}`;
+        }
+        return q;
+      } catch {
+        return q;
+      }
+    };
 
-    const google_maps_url = `https://www.google.com/maps/dir/?api=1&travelmode=walking&origin=${origin}&destination=${origin}&waypoints=${waypoints}`;
+    const originResolved = await geocode(location);
+    const waypointsResolved = await Promise.all(
+      (parsed.steps || []).map((s) => geocode(s.place || s.title))
+    );
+
+    const origin = encodeURIComponent(originResolved);
+    const waypoints = waypointsResolved.map((p) => encodeURIComponent(p)).join("|");
+
+    // Official Google Maps Directions API format — travelmode=walking guaranteed
+    // dir_action=navigate forces the navigation view (mobile) which respects travelmode
+    const google_maps_url = `https://www.google.com/maps/dir/?api=1&travelmode=walking&dir_action=navigate&origin=${origin}&destination=${origin}&waypoints=${waypoints}`;
 
     return new Response(
       JSON.stringify({ steps: parsed.steps, google_maps_url }),
