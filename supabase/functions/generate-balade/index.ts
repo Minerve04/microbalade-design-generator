@@ -13,6 +13,7 @@ Ta mission :
 1. Dresse mentalement une liste exhaustive d'au moins 10 à 15 points d'intérêt ORIGINAUX, MÉCONNUS ou INSOLITES correspondant au thème dans la zone accessible à pied. Évite absolument les monuments et lieux touristiques classiques que tout le monde connaît. Privilégie : cours cachées, passages secrets, détails architecturaux oubliés, fresques discrètes, arbres remarquables, fontaines oubliées, plaques commémoratives insolites, impasses pittoresques, etc.
 2. Parmi cette liste, TIRE AU SORT 3 points de manière aléatoire (utilise le nombre aléatoire suivant comme graine : ${Math.floor(Math.random() * 1000000)}). L'objectif est que deux utilisateurs partant du même endroit avec les mêmes critères obtiennent des parcours DIFFÉRENTS.
 3. Organise ces 3 points en une boucle marchable depuis le point de départ. La boucle totale (départ -> point 1 -> point 2 -> point 3 -> retour au départ) ne doit absolument pas dépasser le temps indiqué à pied.
+4. Mode de déplacement autorisé : marche uniquement. N'envisage jamais voiture, taxi, vélo, trottinette ou transports en commun.
 
 Pour chaque étape, rédige un titre accrocheur et exactement deux phrases d'anecdote historique, insolite ou culturelle. Sois percutant, pas de blabla.
 
@@ -99,37 +100,53 @@ serve(async (req) => {
       throw new Error("Invalid AI response format");
     }
 
-    // Geocode each place via Nominatim to get lat/lng coordinates.
-    // Using coordinates instead of free-text place names ensures Google Maps
-    // resolves the route deterministically and respects travelmode=walking.
-    const geocode = async (q: string): Promise<string> => {
+    // Resolve every point to precise coordinates.
+    // If any point cannot be geocoded, we refuse to build a Google Maps link
+    // so the app never falls back to an ambiguous route that could default to driving.
+    const geocode = async (q: string): Promise<string | null> => {
       try {
         const r = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`,
+          `https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=fr&q=${encodeURIComponent(q)}`,
           { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } }
         );
-        if (!r.ok) return q;
+        if (!r.ok) return null;
         const j = await r.json();
         if (Array.isArray(j) && j[0]?.lat && j[0]?.lon) {
           return `${j[0].lat},${j[0].lon}`;
         }
-        return q;
+        return null;
       } catch {
-        return q;
+        return null;
       }
     };
 
     const originResolved = await geocode(location);
+    if (!originResolved) {
+      return new Response(
+        JSON.stringify({ error: "Impossible de calculer un itinéraire piéton précis depuis ce point de départ." }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const waypointsResolved = await Promise.all(
       (parsed.steps || []).map((s) => geocode(s.place || s.title))
     );
+    if (waypointsResolved.some((point) => !point)) {
+      return new Response(
+        JSON.stringify({ error: "Impossible de verrouiller ce parcours en mode marche uniquement. Réessayez pour obtenir une autre microbalade." }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    const origin = encodeURIComponent(originResolved);
-    const waypoints = waypointsResolved.map((p) => encodeURIComponent(p)).join("|");
+    const googleMapsUrl = new URL("https://www.google.com/maps/dir/");
+    googleMapsUrl.searchParams.set("api", "1");
+    googleMapsUrl.searchParams.set("travelmode", "walking");
+    googleMapsUrl.searchParams.set("dir_action", "navigate");
+    googleMapsUrl.searchParams.set("origin", originResolved);
+    googleMapsUrl.searchParams.set("destination", originResolved);
+    googleMapsUrl.searchParams.set("waypoints", (waypointsResolved as string[]).join("|"));
 
-    // Official Google Maps Directions API format — travelmode=walking guaranteed
-    // dir_action=navigate forces the navigation view (mobile) which respects travelmode
-    const google_maps_url = `https://www.google.com/maps/dir/?api=1&travelmode=walking&dir_action=navigate&origin=${origin}&destination=${origin}&waypoints=${waypoints}`;
+    const google_maps_url = googleMapsUrl.toString();
 
     return new Response(
       JSON.stringify({ steps: parsed.steps, google_maps_url }),

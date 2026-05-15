@@ -1,6 +1,6 @@
-import { useState } from "react";
 import { MapPin, Navigation, ArrowLeft, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 
 export interface BaladeStep {
   title: string;
@@ -19,6 +19,24 @@ interface ResultScreenProps {
 }
 
 const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
+  const handleOpenGoogleMaps = () => {
+    try {
+      const url = new URL(result.google_maps_url);
+      const isGoogleMapsHost = ["www.google.com", "google.com", "maps.google.com"].includes(url.hostname);
+      const isDirectionsPath = url.pathname.startsWith("/maps/dir");
+      const isWalkingOnly = url.searchParams.get("api") === "1" && url.searchParams.get("travelmode") === "walking";
+
+      if (!isGoogleMapsHost || !isDirectionsPath || !isWalkingOnly) {
+        toast.error("Seuls les itinéraires à pied sont autorisés.");
+        return;
+      }
+
+      window.open(url.toString(), "_blank", "noopener,noreferrer");
+    } catch {
+      toast.error("Lien Google Maps piéton invalide.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col pb-8">
       {/* Map placeholder */}
@@ -81,10 +99,9 @@ const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
           ))}
         </div>
 
-        <motion.a
-          href={result.google_maps_url}
-          target="_blank"
-          rel="noopener noreferrer"
+        <motion.button
+          type="button"
+          onClick={handleOpenGoogleMaps}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.5 }}
@@ -93,7 +110,7 @@ const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
         >
           <Navigation size={18} />
           Ouvrir l'itinéraire dans Google Maps
-        </motion.a>
+        </motion.button>
       </div>
     </div>
   );
