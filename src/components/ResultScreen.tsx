@@ -1,4 +1,4 @@
-import { MapPin, Navigation, ArrowLeft, Loader2 } from "lucide-react";
+import { MapPin, Navigation, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 
