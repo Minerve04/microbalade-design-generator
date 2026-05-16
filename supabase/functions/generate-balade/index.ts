@@ -160,6 +160,33 @@ const discoverNearbyPlaces = async (
     .slice(0, 12);
 };
 
+const discoverNearbyPlacesProgressive = async (
+  lat: string,
+  lon: string,
+  baseRadiusMeters: number,
+  interests: string[]
+) => {
+  const radii = Array.from(
+    new Set([
+      baseRadiusMeters,
+      Math.round(baseRadiusMeters * 1.5),
+      Math.round(baseRadiusMeters * 2),
+      Math.max(900, Math.round(baseRadiusMeters * 2.5)),
+      1200,
+    ])
+  ).sort((a, b) => a - b);
+
+  let best: Array<{ name: string; place: string; coord: string; type: string }> = [];
+
+  for (const radius of radii) {
+    const places = await discoverNearbyPlaces(lat, lon, radius, interests);
+    if (places.length > best.length) best = places;
+    if (places.length >= 3) return places;
+  }
+
+  return best;
+};
+
 const buildGoogleMapsUrl = (origin: string, waypoints: string[]) => {
   const googleMapsUrl = new URL("https://www.google.com/maps/dir/");
   googleMapsUrl.searchParams.set("api", "1");
@@ -209,7 +236,7 @@ serve(async (req) => {
     const maxPointRadiusMeters = Math.max(200, Math.round(maxLoopDistanceMeters / 6));
     const originLatLng = originResolved.coord.split(",").reverse().join(",");
     const [originLon, originLat] = originResolved.coord.split(",");
-    const nearbyPlaces = await discoverNearbyPlaces(originLat, originLon, maxPointRadiusMeters, interests as string[]);
+    const nearbyPlaces = await discoverNearbyPlacesProgressive(originLat, originLon, maxPointRadiusMeters, interests as string[]);
 
     if (nearbyPlaces.length < 3) {
       return new Response(
