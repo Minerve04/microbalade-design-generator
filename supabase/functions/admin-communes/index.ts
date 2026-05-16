@@ -66,6 +66,43 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === "upload_logo") {
+      const { filename, content_type, data_base64 } = payload ?? {};
+      if (!filename || !data_base64) return json({ error: "filename et data_base64 requis" }, 400);
+      const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/svg+xml"];
+      if (content_type && !allowed.includes(content_type)) {
+        return json({ error: "Format d'image non supporté" }, 400);
+      }
+      const bytes = Uint8Array.from(atob(data_base64), (c) => c.charCodeAt(0));
+      if (bytes.length > 2 * 1024 * 1024) {
+        return json({ error: "Image trop volumineuse (max 2 Mo)" }, 400);
+      }
+      const ext = (filename.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const path = `${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("commune-logos")
+        .upload(path, bytes, { contentType: content_type || "application/octet-stream", upsert: false });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("commune-logos").getPublicUrl(path);
+      return json({ url: pub.publicUrl });
+    }
+
+    if (action === "list_stats") {
+      const { code_postal, ville, from, to } = payload ?? {};
+      let q = supabase
+        .from("statistiques_recherches")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(5000);
+      if (code_postal) q = q.eq("code_postal", code_postal);
+      if (ville) q = q.ilike("ville", `%${ville}%`);
+      if (from) q = q.gte("created_at", from);
+      if (to) q = q.lte("created_at", to);
+      const { data, error } = await q;
+      if (error) throw error;
+      return json({ data });
+    }
+
     return json({ error: "Unknown action" }, 400);
   } catch (e: any) {
     return json({ error: e.message ?? String(e) }, 500);
