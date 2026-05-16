@@ -115,7 +115,15 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center px-5 py-12 pb-8">
+    <div className="min-h-screen bg-background flex flex-col items-center px-5 py-12 pb-8 relative">
+      <nav className="absolute top-4 right-5 z-10">
+        <Link
+          to="/partenaires"
+          className="text-sm font-medium text-foreground/80 hover:text-primary transition-colors"
+        >
+          Partenaires
+        </Link>
+      </nav>
       <Helmet>
         <title>Microbalade — Transformez votre attente en découverte</title>
         <meta name="description" content="Générez des micro-balades personnalisées autour de vous. Architecture, nature, street-art, histoire insolite." />
