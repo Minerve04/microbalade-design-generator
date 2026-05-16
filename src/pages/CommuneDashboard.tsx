@@ -33,10 +33,11 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommuneSubscription } from "@/hooks/useCommuneSubscription";
-import { AlertTriangle, Lock } from "lucide-react";
+import { AlertTriangle, Lock, FileText as FileTextIcon } from "lucide-react";
 import { getStripeEnvironment, getCommunePriceIdFromAmount } from "@/lib/stripe";
 import { useStripeCheckout } from "@/hooks/useStripeCheckout";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { ChorusRequestDialog } from "@/components/ChorusRequestDialog";
 import logo from "@/assets/logo.png";
 import CommuneQrCode from "@/components/CommuneQrCode";
 import { QrCode } from "lucide-react";
