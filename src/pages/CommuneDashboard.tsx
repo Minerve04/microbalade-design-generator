@@ -90,6 +90,16 @@ export default function CommuneDashboard() {
   // "locked" : abonnement cassé (impayé, annulé…) — pas pour un compte jamais payé.
   const locked = !loadingSub && !isActive && status !== "trialing";
   const neverPaid = !loadingSub && status === "trialing";
+  const { openCheckout, closeCheckout, isOpen: checkoutOpen, checkoutElement } = useStripeCheckout();
+
+  const handlePay = () => {
+    const amount = profile?.abonnement_prix_annuel ?? 600;
+    const priceId = getCommunePriceIdFromAmount(amount);
+    openCheckout({
+      priceId,
+      returnUrl: `${window.location.origin}/dashboard/commune?checkout=success`,
+    });
+  };
 
   // Force user onto billing tab only when subscription is broken
   useEffect(() => {
