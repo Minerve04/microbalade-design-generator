@@ -68,6 +68,7 @@ const NAV: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "overview", label: "Vue d'ensemble", icon: LayoutDashboard },
   { key: "stats", label: "Données & Statistiques", icon: BarChart3 },
   { key: "config", label: "Configuration", icon: Settings },
+  { key: "qrcode", label: "QR code", icon: QrCode },
   { key: "profile", label: "Profil & Facturation", icon: UserCircle2 },
 ];
 
