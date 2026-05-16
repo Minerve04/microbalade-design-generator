@@ -724,6 +724,7 @@ export default function CommuneDashboard() {
                 </p>
                 <button
                   onClick={async () => {
+                    const loadingId = toast.loading("Ouverture du portail Stripe…");
                     try {
                       const { data, error } = await supabase.functions.invoke("create-portal-session", {
                         body: {
@@ -731,12 +732,20 @@ export default function CommuneDashboard() {
                           environment: getStripeEnvironment(),
                         },
                       });
-                      if (error || !data?.url) {
-                        toast.error("Activez d'abord votre abonnement pour accéder au portail.");
+                      toast.dismiss(loadingId);
+                      if (data?.url) {
+                        window.open(data.url, "_blank", "noopener,noreferrer");
                         return;
                       }
-                      window.open(data.url, "_blank");
+                      const msg = (error as { message?: string } | null)?.message ?? "";
+                      if (msg.includes("404") || msg.toLowerCase().includes("no customer")) {
+                        toast.error("Aucun abonnement actif. Souscrivez d'abord depuis la page Partenaires.");
+                        navigate("/partenaires");
+                      } else {
+                        toast.error("Impossible d'ouvrir le portail. Réessayez dans un instant.");
+                      }
                     } catch {
+                      toast.dismiss(loadingId);
                       toast.error("Impossible d'ouvrir le portail pour le moment.");
                     }
                   }}
