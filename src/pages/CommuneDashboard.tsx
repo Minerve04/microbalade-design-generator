@@ -257,7 +257,7 @@ export default function CommuneDashboard() {
     URL.revokeObjectURL(url);
   };
 
-  const totalThisMonth = useMemo(() => monthlyData[monthlyData.length - 1].balades, []);
+  
 
   if (loadingProfile) {
     return (
