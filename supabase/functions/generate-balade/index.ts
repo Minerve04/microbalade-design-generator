@@ -188,12 +188,13 @@ const createCandidateLoops = (originCoord: string, duration: number) => {
   const targetWalkingMeters = safeLimit * EFFECTIVE_WALKING_SPEED_M_PER_MIN;
   // 3-waypoint loop perimeter ≈ ~7 * radius after street detours.
   const baseRadius = Math.max(60, Math.min(500, Math.round(targetWalkingMeters / 7)));
-  // Favor radii near and slightly above target so we can hit the requested duration precisely.
-  const radiusFactors = [0.85, 0.95, 1.0, 1.05, 1.15, 1.25, 0.7];
-  const dynamicRadii = radiusFactors.map((f) => Math.max(50, Math.round(baseRadius * f)));
-  // Emergency tiny loops kept as a last-resort fallback only.
-  const emergencyRadii = [120, 180];
-  const radii = Array.from(new Set([...dynamicRadii, ...emergencyRadii]));
+  // Favor radii near target, but also probe compact urban loops. Some city centers
+  // only yield valid walking circuits when the waypoints are much tighter than the
+  // theoretical radius, because canals, dead ends and pedestrian geometry create large detours.
+  const radiusFactors = [0.55, 0.7, 0.85, 0.95, 1.0, 1.05, 1.15, 1.25];
+  const dynamicRadii = radiusFactors.map((f) => Math.max(30, Math.round(baseRadius * f)));
+  const compactRadii = [30, 40, 55, 70, 85, 100, 120, 150, 180];
+  const radii = Array.from(new Set([...compactRadii, ...dynamicRadii])).sort((a, b) => a - b);
 
   const angleTemplates = [
     [0, 120, 240],
@@ -204,6 +205,11 @@ const createCandidateLoops = (originCoord: string, duration: number) => {
     [60, 180, 300],
     [90, 210, 330],
     [45, 165, 285],
+    [0, 90, 180],
+    [45, 135, 225],
+    [0, 75, 150],
+    [30, 120, 210],
+    [60, 150, 240],
   ];
   return radii.flatMap((radius) =>
     angleTemplates.map((angles) => angles.map((angle) => offsetCoordinate(originCoord, radius, angle)))
