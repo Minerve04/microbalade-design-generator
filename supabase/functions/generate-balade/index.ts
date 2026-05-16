@@ -171,27 +171,34 @@ const offsetCoordinate = (coord: string, distanceMeters: number, bearingDegrees:
 };
 
 const getSafeDurationLimit = (duration: number) => {
-  const buffer = duration >= 45 ? 5 : duration >= 30 ? 4 : 3;
+  const buffer = duration >= 45 ? 4 : duration >= 30 ? 3 : 2;
   return Math.max(10, duration - buffer);
 };
 
-// We build candidate loops sized for the EFFECTIVE walking speed. The street network
-// adds detours so the actual measured route will be longer than the geometric perimeter.
-// We compensate with a conservative detour factor.
+// Build a wide pool of candidate loops sized for the EFFECTIVE walking speed.
+// We over-sample (more angles, more radii, including tiny emergency loops) so that
+// dense city centers with canals, one-way streets or river crossings still yield
+// at least one candidate whose measured OSRM walking time fits the budget.
 const createCandidateLoops = (originCoord: string, duration: number) => {
   const safeLimit = getSafeDurationLimit(duration);
   const targetWalkingMeters = safeLimit * EFFECTIVE_WALKING_SPEED_M_PER_MIN;
-  // A 3-waypoint loop on streets ≈ ~6 * radius after street detours.
-  // Reverse engineer: radius ≈ target / 6, with safety factor 0.85.
-  const baseRadius = Math.max(60, Math.min(450, Math.round((targetWalkingMeters / 6) * 0.85)));
-  const radii = Array.from(
-    new Set([0.55, 0.7, 0.85, 1.0, 1.15].map((f) => Math.max(50, Math.round(baseRadius * f))))
-  );
+  // 3-waypoint loop perimeter ≈ ~7 * radius after street detours.
+  const baseRadius = Math.max(60, Math.min(500, Math.round(targetWalkingMeters / 7)));
+  const radiusFactors = [0.35, 0.5, 0.65, 0.8, 0.95, 1.1];
+  const dynamicRadii = radiusFactors.map((f) => Math.max(50, Math.round(baseRadius * f)));
+  // Emergency tiny loops always included so we have something even when streets are sparse.
+  const emergencyRadii = [70, 110, 160];
+  const radii = Array.from(new Set([...emergencyRadii, ...dynamicRadii]));
+
   const angleTemplates = [
+    [0, 120, 240],
     [15, 130, 255],
     [40, 160, 285],
     [70, 185, 320],
-    [0, 120, 240],
+    [30, 150, 270],
+    [60, 180, 300],
+    [90, 210, 330],
+    [45, 165, 285],
   ];
   return radii.flatMap((radius) =>
     angleTemplates.map((angles) => angles.map((angle) => offsetCoordinate(originCoord, radius, angle)))
