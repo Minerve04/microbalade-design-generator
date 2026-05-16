@@ -202,10 +202,10 @@ export default function CommuneQrCode({ communeName, codePostal }: Props) {
 
       <div className="bg-card border border-border rounded-2xl p-6 grid md:grid-cols-[auto,1fr] gap-6 items-center">
         <div className="w-56 h-56 bg-white rounded-2xl border border-border p-3 flex items-center justify-center shadow-sm">
-          {loading ? (
+          {loading || !previewUrl ? (
             <Loader2 className="text-muted-foreground animate-spin" size={28} />
           ) : (
-            <canvas ref={canvasRef} className="w-full h-full" />
+            <img src={previewUrl} alt="QR code Microbalade" className="w-full h-full object-contain" />
           )}
         </div>
 
