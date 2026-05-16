@@ -85,9 +85,11 @@ export default function CommuneDashboard() {
   const { user, signOut } = useAuth();
   const { isActive, status, loading: loadingSub } = useCommuneSubscription();
   const [tab, setTab] = useState<TabKey>("overview");
-  const locked = !loadingSub && !isActive;
+  // "locked" : abonnement cassé (impayé, annulé…) — pas pour un compte jamais payé.
+  const locked = !loadingSub && !isActive && status !== "trialing";
+  const neverPaid = !loadingSub && status === "trialing";
 
-  // Force user onto billing tab if subscription is not active
+  // Force user onto billing tab only when subscription is broken
   useEffect(() => {
     if (locked && tab !== "profile") setTab("profile");
   }, [locked, tab]);
