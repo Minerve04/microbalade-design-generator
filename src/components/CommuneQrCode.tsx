@@ -23,6 +23,7 @@ function slugify(s: string) {
 export default function CommuneQrCode({ communeName, codePostal }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [svgMarkup, setSvgMarkup] = useState<string>("");
+  const [previewUrl, setPreviewUrl] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
   // Unique tracking URL per commune (visible to user, also useful for stats).
