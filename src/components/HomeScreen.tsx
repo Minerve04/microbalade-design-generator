@@ -137,14 +137,37 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
           </label>
           <div className="relative flex gap-2">
             <div className="relative flex-1">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-primary" size={20} />
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-primary z-10" size={20} />
               <input
                 type="text"
                 placeholder="Où êtes-vous ?"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                className="w-full bg-secondary rounded-xl pl-11 pr-4 py-3.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-sm"
+                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                autoComplete="off"
+                className="w-full bg-secondary rounded-xl pl-11 pr-9 py-3.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-sm"
               />
+              {suggestLoading && (
+                <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground animate-spin" />
+              )}
+              {showSuggestions && suggestions.length > 0 && (
+                <ul className="absolute left-0 right-0 top-full mt-2 bg-popover border border-border rounded-xl shadow-lg overflow-hidden z-20 max-h-64 overflow-y-auto">
+                  {suggestions.map((s, i) => (
+                    <li key={i}>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => selectSuggestion(s.display_name)}
+                        className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-secondary transition-colors flex items-start gap-2"
+                      >
+                        <MapPin size={14} className="text-primary mt-0.5 shrink-0" />
+                        <span className="line-clamp-2">{s.display_name}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
             <button
               type="button"
