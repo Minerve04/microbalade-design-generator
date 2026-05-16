@@ -356,9 +356,6 @@ serve(async (req) => {
 
     let bestWithinSafe: { coords: string[]; route: RouteMeasurement } | null = null;
     let bestWithinHard: { coords: string[]; route: RouteMeasurement } | null = null;
-    let evaluated = 0;
-    let succeeded = 0;
-    let minDuration = Infinity;
 
     // Evaluate candidates in parallel chunks (faster) with early exit once we have
     // a result close to the safe budget.
@@ -373,11 +370,8 @@ serve(async (req) => {
         )
       );
       for (const r of results) {
-        evaluated++;
         if (r.status !== "fulfilled") continue;
-        succeeded++;
         const { loop, route } = r.value;
-        if (route.durationMinutes < minDuration) minDuration = route.durationMinutes;
         if (route.durationMinutes <= safeLimit) {
           if (!bestWithinSafe || route.durationMinutes > bestWithinSafe.route.durationMinutes) {
             bestWithinSafe = { coords: loop, route };
@@ -393,16 +387,11 @@ serve(async (req) => {
       if (bestWithinSafe && bestWithinSafe.route.durationMinutes >= safeLimit * 0.8) break;
     }
 
-    console.log(
-      `[generate-balade] origin=${originResolved.coord} duration=${duration} safeLimit=${safeLimit} loops=${loops.length} evaluated=${evaluated} ok=${succeeded} minDuration=${minDuration}`
-    );
-
     const selected = bestWithinSafe || bestWithinHard;
     if (!selected) {
-      return jsonResponse({
-        error: `Impossible de garantir un trajet Google Maps à pied dans ${duration} minutes maximum depuis cette adresse. Essayez une adresse plus centrale ou un temps plus long.`,
-        debug: { origin: originResolved.coord, duration, safeLimit, loops: loops.length, evaluated, succeeded, minDuration },
-      });
+      return businessError(
+        `Impossible de garantir un trajet Google Maps à pied dans ${duration} minutes maximum depuis cette adresse. Essayez une adresse plus centrale ou un temps plus long.`
+      );
     }
 
     const waypointLabels = await Promise.all(
