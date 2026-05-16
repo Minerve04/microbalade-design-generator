@@ -134,8 +134,6 @@ Deno.serve(async (req) => {
       ui_mode: "embedded_page",
       return_url: returnUrl,
       customer: customerId,
-      // Allow card (immediate) and SEPA Direct Debit (for French municipal mandates).
-      payment_method_types: ["card", "sepa_debit"],
       automatic_tax: { enabled: true },
       customer_update: { name: "auto", address: "auto" },
       tax_id_collection: { enabled: true },
