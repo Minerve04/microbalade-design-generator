@@ -399,9 +399,10 @@ serve(async (req) => {
 
     const selected = bestWithinSafe || bestWithinHard;
     if (!selected) {
-      return businessError(
-        `Impossible de garantir un trajet Google Maps à pied dans ${duration} minutes maximum depuis cette adresse. Essayez une adresse plus centrale ou un temps plus long.`
-      );
+      return jsonResponse({
+        error: `Impossible de garantir un trajet Google Maps à pied dans ${duration} minutes maximum depuis cette adresse. Essayez une adresse plus centrale ou un temps plus long.`,
+        debug: { origin: originResolved.coord, duration, safeLimit, loops: loops.length, evaluated, succeeded, minDuration },
+      });
     }
 
     const waypointLabels = await Promise.all(
