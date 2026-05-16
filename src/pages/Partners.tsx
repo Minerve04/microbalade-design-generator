@@ -258,14 +258,21 @@ const Partners = () => {
               </div>
               <button
                 type="button"
-                onClick={scrollToContact}
+                onClick={handleSubscribe}
                 className="w-full bg-primary text-primary-foreground font-semibold py-4 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 text-base"
               >
-                Obtenir mon accès partenaire
+                {pricing.year >= 10000 ? "Demander un devis" : "S'abonner — " + formatEuro(pricing.year) + " € / an"}
                 <ArrowRight size={18} />
               </button>
+              <button
+                type="button"
+                onClick={scrollToContact}
+                className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                ou demander une démonstration sans engagement
+              </button>
               <p className="text-[11px] text-muted-foreground text-center">
-                Tarif annuel tout compris · Sans engagement de durée
+                Paiement par carte (immédiat) ou virement SEPA · Sans engagement de durée
               </p>
             </div>
           </div>
