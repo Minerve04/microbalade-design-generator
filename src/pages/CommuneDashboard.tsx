@@ -33,6 +33,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommuneSubscription } from "@/hooks/useCommuneSubscription";
+import { AlertTriangle, Lock } from "lucide-react";
 import { getStripeEnvironment } from "@/lib/stripe";
 import logo from "@/assets/logo.png";
 
@@ -79,7 +80,15 @@ function toInputDate(d: Date) {
 export default function CommuneDashboard() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { isActive, status, loading: loadingSub } = useCommuneSubscription();
   const [tab, setTab] = useState<TabKey>("overview");
+  const locked = !loadingSub && !isActive;
+
+  // Force user onto billing tab if subscription is not active
+  useEffect(() => {
+    if (locked && tab !== "profile") setTab("profile");
+  }, [locked, tab]);
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profile, setProfile] = useState<CommuneProfile | null>(null);
   const [searches, setSearches] = useState<SearchRow[]>([]);
@@ -291,21 +300,31 @@ export default function CommuneDashboard() {
           {NAV.map((n) => {
             const Icon = n.icon;
             const active = tab === n.key;
+            const isLockedTab = locked && n.key !== "profile";
             return (
               <button
                 key={n.key}
                 onClick={() => {
+                  if (isLockedTab) {
+                    toast.error("Abonnement suspendu — régularisez le paiement pour réactiver cet onglet.");
+                    setTab("profile");
+                    setSidebarOpen(false);
+                    return;
+                  }
                   setTab(n.key);
                   setSidebarOpen(false);
                 }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                   active
                     ? "bg-primary text-primary-foreground shadow-sm"
+                    : isLockedTab
+                    ? "text-muted-foreground/50 hover:bg-muted/50 cursor-not-allowed"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
                 <Icon size={18} />
-                {n.label}
+                <span className="flex-1 text-left">{n.label}</span>
+                {isLockedTab && <Lock size={13} className="opacity-60" />}
               </button>
             );
           })}
@@ -346,6 +365,18 @@ export default function CommuneDashboard() {
         </header>
 
         <main className="flex-1 p-5 md:p-8 max-w-6xl w-full mx-auto">
+          {locked && (
+            <div className="mb-6 flex items-start gap-3 bg-destructive/10 border border-destructive/30 rounded-2xl p-4">
+              <AlertTriangle className="text-destructive shrink-0 mt-0.5" size={20} />
+              <div className="text-sm">
+                <div className="font-semibold text-foreground">Abonnement suspendu</div>
+                <p className="text-muted-foreground mt-1">
+                  Votre dashboard et l'affichage de votre logo sur Microbalade sont en pause.
+                  Régularisez votre paiement via le portail sécurisé ci-dessous pour réactiver instantanément vos services.
+                </p>
+              </div>
+            </div>
+          )}
           {tab === "overview" && (
             <section className="space-y-6">
               <div className="flex items-start justify-between flex-wrap gap-4">
@@ -666,9 +697,22 @@ export default function CommuneDashboard() {
                       </span>
                     </p>
                   </div>
-                  <span className="text-xs font-semibold uppercase tracking-wider text-primary bg-primary/10 px-3 py-1 rounded-full">
-                    Actif
-                  </span>
+                  {(() => {
+                    const map: Record<string, { label: string; cls: string }> = {
+                      active: { label: "Actif", cls: "text-primary bg-primary/10" },
+                      trialing: { label: "Période d'essai", cls: "text-primary bg-primary/10" },
+                      past_due: { label: "Paiement en retard", cls: "text-amber-700 bg-amber-100" },
+                      unpaid: { label: "Impayé", cls: "text-destructive bg-destructive/10" },
+                      canceled: { label: "Annulé", cls: "text-destructive bg-destructive/10" },
+                      incomplete: { label: "À finaliser", cls: "text-amber-700 bg-amber-100" },
+                    };
+                    const s = map[status ?? "trialing"] ?? map.trialing;
+                    return (
+                      <span className={`text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full ${s.cls}`}>
+                        {s.label}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
 
