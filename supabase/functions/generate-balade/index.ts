@@ -91,6 +91,75 @@ const getWalkingRoute = async (coordinates: string[]) => {
   };
 };
 
+const discoverNearbyPlaces = async (
+  lat: string,
+  lon: string,
+  radiusMeters: number,
+  interests: string[]
+): Promise<Array<{ name: string; place: string; coord: string; type: string }>> => {
+  const interestFilters: Record<string, string[]> = {
+    nature: ['node(around:R,LAT,LON)["natural"]', 'way(around:R,LAT,LON)["natural"]', 'node(around:R,LAT,LON)["leisure"="park"]', 'way(around:R,LAT,LON)["leisure"="park"]'],
+    architecture: ['node(around:R,LAT,LON)["building"]', 'way(around:R,LAT,LON)["building"]', 'node(around:R,LAT,LON)["historic"]', 'way(around:R,LAT,LON)["historic"]'],
+    streetart: ['node(around:R,LAT,LON)["tourism"="artwork"]', 'way(around:R,LAT,LON)["tourism"="artwork"]'],
+    history: ['node(around:R,LAT,LON)["historic"]', 'way(around:R,LAT,LON)["historic"]', 'node(around:R,LAT,LON)["memorial"]', 'way(around:R,LAT,LON)["memorial"]'],
+  };
+
+  const fallbackFilters = [
+    'node(around:R,LAT,LON)["historic"]',
+    'way(around:R,LAT,LON)["historic"]',
+    'node(around:R,LAT,LON)["tourism"]',
+    'way(around:R,LAT,LON)["tourism"]',
+    'node(around:R,LAT,LON)["amenity"]',
+    'way(around:R,LAT,LON)["amenity"]',
+    'node(around:R,LAT,LON)["natural"]',
+    'way(around:R,LAT,LON)["natural"]',
+  ];
+
+  const selectedFilters = Array.from(
+    new Set(interests.flatMap((interest) => interestFilters[interest] || []).concat(fallbackFilters))
+  )
+    .map((filter) => filter.replaceAll("R", String(radiusMeters)).replaceAll("LAT", lat).replaceAll("LON", lon))
+    .join(";");
+
+  const query = `[out:json][timeout:25];(${selectedFilters};);out center tags 60;`;
+  const response = await fetch("https://overpass-api.de/api/interpreter", {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain",
+      "User-Agent": "Microbalade/1.0 (contact@microbalade.com)",
+    },
+    body: query,
+  });
+
+  if (!response.ok) {
+    throw new Error("Impossible de rechercher des lieux proches pour la balade.");
+  }
+
+  const data = await response.json();
+  const elements = Array.isArray(data?.elements) ? data.elements : [];
+
+  return elements
+    .map((element: any) => {
+      const tags = element?.tags || {};
+      const name = tags.name || tags["addr:street"] || tags["official_name"] || null;
+      const pointLat = element?.lat ?? element?.center?.lat;
+      const pointLon = element?.lon ?? element?.center?.lon;
+
+      if (!name || pointLat == null || pointLon == null) return null;
+
+      const locality = tags["addr:city"] || tags["addr:town"] || tags["addr:village"] || tags["addr:municipality"] || "Longuenesse";
+      return {
+        name,
+        place: `${name}, ${locality}`,
+        coord: `${pointLon},${pointLat}`,
+        type: tags.historic || tags.natural || tags.tourism || tags.amenity || tags.leisure || "lieu",
+      };
+    })
+    .filter(Boolean)
+    .filter((place: any, index: number, arr: any[]) => arr.findIndex((item) => item.place === place.place) === index)
+    .slice(0, 12);
+};
+
 const buildGoogleMapsUrl = (origin: string, waypoints: string[]) => {
   const googleMapsUrl = new URL("https://www.google.com/maps/dir/");
   googleMapsUrl.searchParams.set("api", "1");
@@ -139,6 +208,15 @@ serve(async (req) => {
     const maxLoopDistanceMeters = Math.round(duration * WALKING_SPEED_METERS_PER_MINUTE);
     const maxPointRadiusMeters = Math.max(200, Math.round(maxLoopDistanceMeters / 6));
     const originLatLng = originResolved.coord.split(",").reverse().join(",");
+    const [originLon, originLat] = originResolved.coord.split(",");
+    const nearbyPlaces = await discoverNearbyPlaces(originLat, originLon, maxPointRadiusMeters, interests as string[]);
+
+    if (nearbyPlaces.length < 3) {
+      return new Response(
+        JSON.stringify({ error: `Pas assez de lieux accessibles à pied ont été trouvés autour de cette adresse pour construire une boucle de ${duration} minutes.` }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     let finalSteps: BaladeStep[] | null = null;
     let finalGoogleMapsUrl: string | null = null;
@@ -150,6 +228,7 @@ serve(async (req) => {
         `Coordonnées du départ : ${originLatLng}`,
         `Temps disponible : ${duration} minutes`,
         `Centres d'intérêt : ${interestText}`,
+        `Tu dois choisir exactement 3 lieux parmi cette liste UNIQUEMENT, sans en inventer d'autres : ${nearbyPlaces.map((place) => `${place.place} [${place.type}]`).join(" ; ")}`,
         `Contrainte géographique stricte : chaque point proposé doit rester à environ ${maxPointRadiusMeters} mètres maximum du point de départ pour garantir une vraie boucle piétonne.` ,
         attempt > 0
           ? `IMPORTANT : ta précédente proposition mesurée faisait ${lastMeasuredDuration ?? "trop"} minutes à pied. Réduis fortement le rayon et propose des lieux nettement plus proches pour garantir une boucle totale de ${duration} minutes maximum à pied.`
@@ -211,9 +290,10 @@ serve(async (req) => {
         continue;
       }
 
-      const resolvedWaypoints = await Promise.all(
-        steps.map(async (step) => geocode(step.place || step.title, routeContext))
-      );
+      const resolvedWaypoints = steps.map((step) => {
+        const normalizedPlace = (step.place || "").trim().toLowerCase();
+        return nearbyPlaces.find((candidate) => candidate.place.toLowerCase() === normalizedPlace);
+      });
 
       if (resolvedWaypoints.some((point) => !point)) {
         continue;
@@ -221,7 +301,7 @@ serve(async (req) => {
 
       const waypointCandidates = steps.map((step, index) => ({
         step,
-        point: resolvedWaypoints[index] as { coord: string; label: string },
+        point: resolvedWaypoints[index] as { coord: string; place: string; name: string },
       }));
 
       let bestRoute:
