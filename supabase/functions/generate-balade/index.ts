@@ -10,10 +10,13 @@ type BaladeStep = { title: string; description: string; place?: string };
 type Waypoint = { coord: string; label: string };
 type RouteMeasurement = { durationMinutes: number; distanceMeters: number };
 
-const WALKING_SPEED_METERS_PER_MINUTE = 75;
+// Google Maps walking pace ≈ 4.5 km/h ≈ 75 m/min ; we go slightly more conservative
+// to absorb turns, traffic lights and snapping, so what we promise matches Google.
+const EFFECTIVE_WALKING_SPEED_M_PER_MIN = 70;
 const ORIGIN_SEARCH_TIMEOUT_MS = 3500;
 const REVERSE_GEOCODE_TIMEOUT_MS = 1800;
 const ROUTE_TIMEOUT_MS = 5000;
+const AI_TIMEOUT_MS = 9000;
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -26,7 +29,6 @@ const businessError = (message: string) => jsonResponse({ error: message }, 200)
 const fetchWithTimeout = (input: string, init: RequestInit = {}, timeoutMs: number) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
   return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timeout));
 };
 
@@ -42,9 +44,8 @@ const toLatLng = (coord: string) => {
   return `${lat},${lon}`;
 };
 
-const geocode = async (query: string, context?: string): Promise<{ coord: string; label: string } | null> => {
+const geocode = async (query: string, context?: string) => {
   const candidates = [query, context ? `${query}, ${context}` : null].filter(Boolean) as string[];
-
   for (const candidate of candidates) {
     try {
       const response = await fetchWithTimeout(
@@ -52,7 +53,6 @@ const geocode = async (query: string, context?: string): Promise<{ coord: string
         { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } },
         ORIGIN_SEARCH_TIMEOUT_MS
       );
-
       if (!response.ok) continue;
       const data = await response.json();
       if (Array.isArray(data) && data[0]?.lat && data[0]?.lon) {
@@ -65,7 +65,6 @@ const geocode = async (query: string, context?: string): Promise<{ coord: string
       continue;
     }
   }
-
   return null;
 };
 
@@ -77,7 +76,6 @@ const reverseGeocode = async (coord: string, fallbackLabel: string) => {
       { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } },
       REVERSE_GEOCODE_TIMEOUT_MS
     );
-
     if (!response.ok) return fallbackLabel;
     const data = await response.json();
     const address = data?.address || {};
@@ -90,6 +88,10 @@ const reverseGeocode = async (coord: string, fallbackLabel: string) => {
   }
 };
 
+// Measure real walking route via OSRM (foot profile). We trust the DISTANCE, not the
+// duration: the OSRM demo's foot speed is optimistic vs Google Maps. We recompute
+// the time from the distance with a Google-equivalent pace so the promised duration
+// matches what the user will actually see in Google Maps.
 const getWalkingRoute = async (coordinates: string[]): Promise<RouteMeasurement> => {
   const url = `https://router.project-osrm.org/route/v1/foot/${coordinates.join(";")}?overview=false&steps=false`;
   const response = await fetchWithTimeout(
@@ -97,21 +99,14 @@ const getWalkingRoute = async (coordinates: string[]): Promise<RouteMeasurement>
     { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } },
     ROUTE_TIMEOUT_MS
   );
-
-  if (!response.ok) {
-    throw new Error("Impossible de calculer un itinéraire piéton fiable.");
-  }
-
+  if (!response.ok) throw new Error("OSRM unreachable");
   const data = await response.json();
   const route = data?.routes?.[0];
-  if (!route?.duration) {
-    throw new Error("Aucun itinéraire piéton exploitable n'a été trouvé.");
-  }
+  if (!route || typeof route.distance !== "number") throw new Error("No route");
 
-  return {
-    durationMinutes: Math.ceil(route.duration / 60),
-    distanceMeters: Math.round(route.distance ?? 0),
-  };
+  const distanceMeters = Math.round(route.distance);
+  const durationMinutes = Math.ceil(distanceMeters / EFFECTIVE_WALKING_SPEED_M_PER_MIN);
+  return { durationMinutes, distanceMeters };
 };
 
 const offsetCoordinate = (coord: string, distanceMeters: number, bearingDegrees: number) => {
@@ -121,41 +116,42 @@ const offsetCoordinate = (coord: string, distanceMeters: number, bearingDegrees:
   const latRad = (lat * Math.PI) / 180;
   const lonRad = (lon * Math.PI) / 180;
   const angularDistance = distanceMeters / earthRadius;
-
   const nextLat = Math.asin(
     Math.sin(latRad) * Math.cos(angularDistance) +
       Math.cos(latRad) * Math.sin(angularDistance) * Math.cos(bearing)
   );
-
   const nextLon =
     lonRad +
     Math.atan2(
       Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(latRad),
       Math.cos(angularDistance) - Math.sin(latRad) * Math.sin(nextLat)
     );
-
   return formatCoord((nextLon * 180) / Math.PI, (nextLat * 180) / Math.PI);
 };
 
 const getSafeDurationLimit = (duration: number) => {
-  const buffer = duration >= 45 ? 6 : duration >= 30 ? 5 : 3;
+  const buffer = duration >= 45 ? 5 : duration >= 30 ? 4 : 3;
   return Math.max(10, duration - buffer);
 };
 
+// We build candidate loops sized for the EFFECTIVE walking speed. The street network
+// adds detours so the actual measured route will be longer than the geometric perimeter.
+// We compensate with a conservative detour factor.
 const createCandidateLoops = (originCoord: string, duration: number) => {
   const safeLimit = getSafeDurationLimit(duration);
-  const targetDistance = safeLimit * WALKING_SPEED_METERS_PER_MINUTE;
-  const baseRadius = Math.max(70, Math.min(360, Math.round(targetDistance / 5)));
+  const targetWalkingMeters = safeLimit * EFFECTIVE_WALKING_SPEED_M_PER_MIN;
+  // A 3-waypoint loop on streets ≈ ~6 * radius after street detours.
+  // Reverse engineer: radius ≈ target / 6, with safety factor 0.85.
+  const baseRadius = Math.max(60, Math.min(450, Math.round((targetWalkingMeters / 6) * 0.85)));
   const radii = Array.from(
-    new Set([0.65, 0.8, 0.95, 1.1, 1.25].map((factor) => Math.max(60, Math.round(baseRadius * factor))))
+    new Set([0.55, 0.7, 0.85, 1.0, 1.15].map((f) => Math.max(50, Math.round(baseRadius * f))))
   );
-
   const angleTemplates = [
     [15, 130, 255],
     [40, 160, 285],
     [70, 185, 320],
+    [0, 120, 240],
   ];
-
   return radii.flatMap((radius) =>
     angleTemplates.map((angles) => angles.map((angle) => offsetCoordinate(originCoord, radius, angle)))
   );
@@ -172,36 +168,113 @@ const buildGoogleMapsUrl = (origin: string, waypoints: string[]) => {
   return url.toString();
 };
 
-const buildDescriptions = (interests: string[]) => {
-  const hasNature = interests.includes("nature");
-  const hasArchitecture = interests.includes("architecture");
-  const hasStreetart = interests.includes("streetart");
-  const hasHistory = interests.includes("history");
+const FALLBACK_DESCRIPTIONS = [
+  "Premier détour : ouvrez l'œil sur ce que la marche révèle dans les premières rues, là où la voiture n'aurait rien laissé voir. Laissez la cadence ralentir pour entrer dans le rythme de la balade.",
+  "Point de passage : ce pivot relie deux ambiances du quartier et offre un vrai temps d'observation. Profitez-en pour repérer un détail que vous n'auriez jamais remarqué autrement.",
+  "Retour par la boucle : la dernière portion vous ramène doucement vers le départ par un autre angle. Gardez les yeux levés, c'est souvent là que se cachent les meilleures surprises.",
+];
 
-  return [
-    hasArchitecture
-      ? "Regardez les façades, les alignements et les détails bâtis que l'on remarque seulement à pied. Cette première halte vous place tout de suite dans un rythme de découverte lente et précise."
-      : hasNature
-        ? "Prenez quelques secondes pour sentir l'ambiance du quartier et repérer ce qui change dans le paysage quand on avance à pied. Cette première halte lance une boucle courte pensée pour rester confortable dans votre temps disponible."
-        : "Cette première halte ouvre la balade avec un point de vue simple à observer sans quitter votre boucle piétonne. Elle vous met immédiatement dans une exploration lente, locale et sans détour inutile.",
-    hasStreetart
-      ? "Ouvrez l'œil sur les détails visuels, les murs, les textures et les signes du quartier que la voiture efface complètement. À pied, cette portion de trajet devient un vrai moment d'observation plutôt qu'un simple déplacement."
-      : hasHistory
-        ? "Ici, le rythme piéton aide à lire les traces discrètes du passé dans l'espace autour de vous. La boucle a été calibrée pour préserver ce temps de regard sans dépasser votre durée disponible."
-        : "Cette deuxième étape sert de pivot dans une boucle volontairement compacte et mesurée côté serveur. Elle garde un vrai temps d'observation tout en restant strictement compatible avec un trajet à pied.",
-    hasNature
-      ? "Cette dernière halte referme la boucle avec une respiration plus calme avant le retour. Le parcours Google Maps reste verrouillé en marche et dimensionné pour rentrer dans le temps demandé."
-      : "Cette dernière halte prépare un retour direct vers le départ sans rallonge cachée. Le parcours a été retenu uniquement parce que sa durée piétonne mesurée reste dans votre créneau disponible.",
-  ];
+const INTEREST_LABELS: Record<string, string> = {
+  nature: "nature urbaine, jardins et arbres remarquables",
+  architecture: "architecture, façades et détails bâtis",
+  streetart: "street art, fresques et signes graphiques",
+  history: "histoire, traces du passé et patrimoine discret",
 };
 
-const buildSteps = (waypoints: Waypoint[], interests: string[]): BaladeStep[] => {
-  const descriptions = buildDescriptions(interests);
-  const titles = ["Premier détour", "Point de passage", "Retour par la boucle"];
+const buildAiPrompt = (
+  originLabel: string,
+  waypointLabels: string[],
+  interests: string[],
+  walkingMinutes: number
+) => {
+  const interestsHuman = interests
+    .map((i) => INTEREST_LABELS[i] || i)
+    .join(", ");
+  const stepsList = waypointLabels
+    .map((label, i) => `${i + 1}. ${label}`)
+    .join("\n");
+  return `Tu es un guide local francophone, expert du quartier et passionné. Tu produis des micro-anecdotes concrètes et sensorielles pour une balade à pied en boucle.
 
+Départ : ${originLabel}
+Durée mesurée : ${walkingMinutes} minutes à pied
+Centres d'intérêt : ${interestsHuman}
+
+Étapes (dans l'ordre) :
+${stepsList}
+
+Pour CHAQUE étape, écris exactement DEUX phrases :
+- Phrase 1 : ce que le promeneur voit / observe à pied à cet endroit (détail concret, sensoriel, ancré dans le lieu).
+- Phrase 2 : un fait court (anecdote, repère historique, ambiance, jeu de regard) qui donne envie de s'arrêter.
+
+Pas d'introduction, pas de conclusion, pas de listes à puces, pas de titres. Réponds STRICTEMENT en JSON :
+{"steps":[{"description":"..."},{"description":"..."},{"description":"..."}]}`;
+};
+
+const generateAiDescriptions = async (
+  originLabel: string,
+  waypointLabels: string[],
+  interests: string[],
+  walkingMinutes: number
+): Promise<string[] | null> => {
+  const apiKey = Deno.env.get("LOVABLE_API_KEY");
+  if (!apiKey) return null;
+
+  try {
+    const response = await fetchWithTimeout(
+      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            {
+              role: "user",
+              content: buildAiPrompt(originLabel, waypointLabels, interests, walkingMinutes),
+            },
+          ],
+          response_format: { type: "json_object" },
+        }),
+      },
+      AI_TIMEOUT_MS
+    );
+
+    if (!response.ok) {
+      console.warn("AI gateway non-2xx", response.status, await response.text());
+      return null;
+    }
+
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) return null;
+
+    const parsed = typeof content === "string" ? JSON.parse(content) : content;
+    const steps = Array.isArray(parsed?.steps) ? parsed.steps : null;
+    if (!steps) return null;
+
+    return steps
+      .map((s: any) => (typeof s?.description === "string" ? s.description.trim() : ""))
+      .filter(Boolean);
+  } catch (e) {
+    console.warn("AI generation failed:", e);
+    return null;
+  }
+};
+
+const buildSteps = (
+  waypoints: Waypoint[],
+  aiDescriptions: string[] | null
+): BaladeStep[] => {
+  const titles = ["Premier détour", "Point de passage", "Retour par la boucle"];
   return waypoints.map((waypoint, index) => ({
     title: titles[index] ?? `Étape ${index + 1}`,
-    description: descriptions[index] ?? descriptions[descriptions.length - 1],
+    description:
+      aiDescriptions?.[index] ||
+      FALLBACK_DESCRIPTIONS[index] ||
+      FALLBACK_DESCRIPTIONS[FALLBACK_DESCRIPTIONS.length - 1],
     place: waypoint.label,
   }));
 };
@@ -226,7 +299,6 @@ serve(async (req) => {
 
     const routeContext = location.includes(",") ? location.split(",").slice(-3).join(",").trim() : location;
     const originResolved = await geocode(location, routeContext);
-
     if (!originResolved) {
       return businessError("Impossible de localiser précisément le point de départ.");
     }
@@ -246,7 +318,6 @@ serve(async (req) => {
             bestWithinSafe = { coords: loop, route };
           }
         }
-
         if (route.durationMinutes <= duration) {
           if (!bestWithinHard || route.durationMinutes > bestWithinHard.route.durationMinutes) {
             bestWithinHard = { coords: loop, route };
@@ -273,9 +344,19 @@ serve(async (req) => {
       label: waypointLabels[index],
     }));
 
+    const aiDescriptions = await generateAiDescriptions(
+      originResolved.label,
+      waypointLabels,
+      interests as string[],
+      selected.route.durationMinutes
+    );
+
     return jsonResponse({
-      steps: buildSteps(waypoints, interests as string[]),
-      google_maps_url: buildGoogleMapsUrl(toLatLng(originResolved.coord), waypoints.map((point) => toLatLng(point.coord))),
+      steps: buildSteps(waypoints, aiDescriptions),
+      google_maps_url: buildGoogleMapsUrl(
+        toLatLng(originResolved.coord),
+        waypoints.map((p) => toLatLng(p.coord))
+      ),
       walking_minutes: selected.route.durationMinutes,
       walking_distance_meters: selected.route.distanceMeters,
     });

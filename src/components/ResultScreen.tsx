@@ -5,6 +5,7 @@ import { toast } from "sonner";
 export interface BaladeStep {
   title: string;
   description: string;
+  place?: string;
 }
 
 export interface BaladeResult {
@@ -95,7 +96,10 @@ const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
                   <span className="text-sm font-bold text-primary">{index + 1}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-base font-semibold text-foreground mb-1.5">{step.title}</h3>
+                  <h3 className="text-base font-semibold text-foreground mb-0.5">{step.title}</h3>
+                  {step.place && (
+                    <p className="text-xs font-medium text-primary mb-1.5 truncate">{step.place}</p>
+                  )}
                   <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
                 </div>
               </div>
