@@ -667,6 +667,13 @@ export default function CommuneDashboard() {
             </section>
           )}
 
+          {tab === "qrcode" && (
+            <CommuneQrCode
+              communeName={profile?.nom_collectivite ?? "Microbalade"}
+              codePostal={profile?.code_postal ?? null}
+            />
+          )}
+
           {tab === "profile" && (
             <section className="space-y-6 max-w-3xl">
               <div>
