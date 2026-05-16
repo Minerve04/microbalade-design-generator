@@ -8,7 +8,8 @@ export type CommuneStatus =
   | "past_due"
   | "unpaid"
   | "canceled"
-  | "incomplete";
+  | "incomplete"
+  | "en_attente_mandat";
 
 export function useCommuneSubscription() {
   const { user } = useAuth();
@@ -56,7 +57,8 @@ export function useCommuneSubscription() {
     };
   }, [user]);
 
-  // Pas de période d'essai : seul "active" donne accès.
-  const isActive = status === "active";
-  return { status, isActive, loading };
+  // "active" = payé par Stripe. "en_attente_mandat" = Chorus en cours, accès débloqué et logo visible.
+  const isActive = status === "active" || status === "en_attente_mandat";
+  const isPendingMandat = status === "en_attente_mandat";
+  return { status, isActive, isPendingMandat, loading };
 }

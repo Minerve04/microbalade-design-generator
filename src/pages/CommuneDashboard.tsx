@@ -33,10 +33,11 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommuneSubscription } from "@/hooks/useCommuneSubscription";
-import { AlertTriangle, Lock } from "lucide-react";
+import { AlertTriangle, Lock, FileText as FileTextIcon } from "lucide-react";
 import { getStripeEnvironment, getCommunePriceIdFromAmount } from "@/lib/stripe";
 import { useStripeCheckout } from "@/hooks/useStripeCheckout";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { ChorusRequestDialog } from "@/components/ChorusRequestDialog";
 import logo from "@/assets/logo.png";
 import CommuneQrCode from "@/components/CommuneQrCode";
 import { QrCode } from "lucide-react";
@@ -54,6 +55,15 @@ interface CommuneProfile {
   abonnement_label: string;
   abonnement_prix_annuel: number;
   abonnement_renouvellement: string;
+  siret?: string | null;
+  numero_engagement?: string | null;
+  code_service_chorus?: string | null;
+  adresse_facturation?: string | null;
+  email_comptabilite?: string | null;
+  mode_paiement?: string | null;
+  chorus_status?: string | null;
+  chorus_requested_at?: string | null;
+  chorus_due_date?: string | null;
 }
 
 interface SearchRow {
@@ -85,12 +95,13 @@ function toInputDate(d: Date) {
 export default function CommuneDashboard() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { isActive, status, loading: loadingSub } = useCommuneSubscription();
+  const { isActive, status, isPendingMandat, loading: loadingSub } = useCommuneSubscription();
   const [tab, setTab] = useState<TabKey>("overview");
   // "locked" : abonnement cassé (impayé, annulé…) — pas pour un compte jamais payé.
   const locked = !loadingSub && !isActive && status !== "trialing";
   const neverPaid = !loadingSub && status === "trialing";
   const { openCheckout, closeCheckout, isOpen: checkoutOpen, checkoutElement } = useStripeCheckout();
+  const [chorusOpen, setChorusOpen] = useState(false);
 
   const handlePay = () => {
     const amount = profile?.abonnement_prix_annuel ?? 600;
@@ -395,20 +406,47 @@ export default function CommuneDashboard() {
             </div>
           )}
           {neverPaid && (
-            <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3 bg-primary/10 border border-primary/30 rounded-2xl p-4">
-              <AlertTriangle className="text-primary shrink-0" size={20} />
+            <div className="mb-6 flex flex-col gap-3 bg-primary/10 border border-primary/30 rounded-2xl p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="text-primary shrink-0 mt-0.5" size={20} />
+                <div className="text-sm flex-1">
+                  <div className="font-semibold text-foreground">Abonnement inactif — paiement requis</div>
+                  <p className="text-muted-foreground mt-1">
+                    Votre compte est créé mais aucun paiement n'a été enregistré. Choisissez votre mode de règlement pour activer votre dashboard et l'affichage de votre logo sur Microbalade.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+                <button
+                  onClick={() => setChorusOpen(true)}
+                  className="inline-flex items-center justify-center gap-1.5 bg-secondary text-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:bg-secondary/80 transition border border-border"
+                >
+                  <FileTextIcon size={16} /> Bon de commande / Chorus Pro
+                </button>
+                <button
+                  onClick={handlePay}
+                  className="inline-flex items-center justify-center bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:opacity-90 transition"
+                >
+                  Payer par carte
+                </button>
+              </div>
+            </div>
+          )}
+          {isPendingMandat && (
+            <div className="mb-6 flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-2xl p-4">
+              <FileTextIcon className="text-amber-700 shrink-0 mt-0.5" size={20} />
               <div className="text-sm flex-1">
-                <div className="font-semibold text-foreground">Abonnement inactif — paiement requis</div>
+                <div className="font-semibold text-foreground">Règlement par Chorus Pro en attente</div>
                 <p className="text-muted-foreground mt-1">
-                  Votre compte est créé mais aucun paiement n'a été enregistré. Choisissez votre formule pour activer votre dashboard et l'affichage de votre logo sur Microbalade.
+                  Votre compte est <strong>activé</strong>. La facture a été émise et doit être réglée
+                  {profile?.chorus_due_date ? (
+                    <> avant le <strong>{new Date(profile.chorus_due_date).toLocaleDateString("fr-FR")}</strong></>
+                  ) : (
+                    <> sous 30 jours</>
+                  )}
+                  . Une fois le virement reçu, votre statut passera à « Actif ».
                 </p>
               </div>
-              <button
-                onClick={handlePay}
-                className="shrink-0 inline-flex items-center justify-center bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:opacity-90 transition"
-              >
-                Payer mon abonnement
-              </button>
             </div>
           )}
           {tab === "overview" && (
@@ -450,7 +488,7 @@ export default function CommuneDashboard() {
                 <div className="flex items-center gap-3">
                   <span
                     className={`h-2.5 w-2.5 rounded-full ${
-                      isActive ? "bg-emerald-500" : "bg-destructive"
+                      isPendingMandat ? "bg-amber-500" : isActive ? "bg-emerald-500" : "bg-destructive"
                     }`}
                   />
                   <div>
@@ -458,7 +496,7 @@ export default function CommuneDashboard() {
                       Statut de l'abonnement
                     </div>
                     <div className="text-lg font-extrabold text-foreground">
-                      {isActive ? "Actif" : "Inactif — paiement requis"}
+                      {isPendingMandat ? "Actif — règlement Chorus en attente" : isActive ? "Actif" : "Inactif — paiement requis"}
                     </div>
                     <div className="text-sm text-muted-foreground mt-0.5">
                       Formule : <span className="font-semibold text-foreground">{profile?.abonnement_label ?? "—"}</span>
@@ -467,12 +505,20 @@ export default function CommuneDashboard() {
                   </div>
                 </div>
                 {!isActive ? (
-                  <button
-                    onClick={handlePay}
-                    className="shrink-0 inline-flex items-center justify-center bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:opacity-90 transition"
-                  >
-                    Payer mon abonnement
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+                    <button
+                      onClick={() => setChorusOpen(true)}
+                      className="inline-flex items-center justify-center gap-1.5 bg-secondary text-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:bg-secondary/80 transition border border-border"
+                    >
+                      <FileTextIcon size={16} /> Bon de commande
+                    </button>
+                    <button
+                      onClick={handlePay}
+                      className="inline-flex items-center justify-center bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:opacity-90 transition"
+                    >
+                      Payer par carte
+                    </button>
+                  </div>
                 ) : (
                   <button
                     onClick={() => setTab("profile")}
@@ -853,6 +899,33 @@ export default function CommuneDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {profile && user && (
+        <ChorusRequestDialog
+          open={chorusOpen}
+          onOpenChange={setChorusOpen}
+          userId={user.id}
+          email={profile.email}
+          nomCollectivite={profile.nom_collectivite}
+          prixAnnuel={profile.abonnement_prix_annuel}
+          formuleLabel={profile.abonnement_label}
+          initial={{
+            siret: profile.siret,
+            numero_engagement: profile.numero_engagement,
+            code_service_chorus: profile.code_service_chorus,
+            adresse_facturation: profile.adresse_facturation,
+            email_comptabilite: profile.email_comptabilite,
+          }}
+          onSuccess={async () => {
+            const { data } = await supabase
+              .from("commune_profiles")
+              .select("*")
+              .eq("user_id", user.id)
+              .maybeSingle();
+            if (data) setProfile(data as CommuneProfile);
+          }}
+        />
+      )}
     </div>
   );
 }
