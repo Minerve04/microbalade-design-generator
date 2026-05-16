@@ -14,6 +14,7 @@ import PartnerLogin from "./pages/PartnerLogin.tsx";
 import CommuneDashboard from "./pages/CommuneDashboard.tsx";
 import AdminCommunes from "./pages/AdminCommunes.tsx";
 import CheckoutReturn from "./pages/CheckoutReturn.tsx";
+import Contact from "./pages/Contact.tsx";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 
 const queryClient = new QueryClient();
