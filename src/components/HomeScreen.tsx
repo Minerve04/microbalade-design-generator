@@ -257,12 +257,19 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
           )}
         </motion.button>
 
-        <footer className="text-center pt-2">
+        <footer className="text-center pt-2 flex items-center justify-center gap-3">
           <Link
             to="/confidentialite"
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             Politique de confidentialité
+          </Link>
+          <span className="text-xs text-muted-foreground">·</span>
+          <Link
+            to="/mentions-legales"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Mentions légales
           </Link>
         </footer>
       </motion.div>
