@@ -28,6 +28,69 @@ Tu dois répondre UNIQUEMENT en JSON valide avec ce format exact, sans texte ava
 
 Le champ "place" doit être une adresse ou un nom de lieu suffisamment précis pour être trouvé sur Google Maps (ex: "Cour de l'Hôtel Sandelin, Saint-Omer"). Ne propose aucune introduction ni conclusion.`;
 
+type BaladeStep = { title: string; description: string; place?: string };
+
+const MAX_GENERATION_ATTEMPTS = 4;
+
+const geocode = async (q: string, context?: string): Promise<{ coord: string; label: string } | null> => {
+  const candidates = [q, context ? `${q}, ${context}` : null].filter(Boolean) as string[];
+
+  for (const candidate of candidates) {
+    try {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&accept-language=fr&q=${encodeURIComponent(candidate)}`,
+        { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } }
+      );
+      if (!r.ok) continue;
+      const j = await r.json();
+      if (Array.isArray(j) && j[0]?.lat && j[0]?.lon) {
+        return {
+          coord: `${j[0].lon},${j[0].lat}`,
+          label: j[0]?.display_name || candidate,
+        };
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+};
+
+const getWalkingRoute = async (coordinates: string[]) => {
+  const routeUrl = `https://router.project-osrm.org/route/v1/foot/${coordinates.join(";")}?overview=false&steps=false`;
+  const response = await fetch(routeUrl, {
+    headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" },
+  });
+
+  if (!response.ok) {
+    throw new Error("Impossible de calculer un itinéraire piéton fiable.");
+  }
+
+  const data = await response.json();
+  const route = data?.routes?.[0];
+
+  if (!route?.duration || !Array.isArray(route.legs) || route.legs.length === 0) {
+    throw new Error("Aucun itinéraire piéton exploitable n'a été trouvé.");
+  }
+
+  return {
+    durationMinutes: Math.ceil(route.duration / 60),
+    distanceMeters: route.distance ?? 0,
+  };
+};
+
+const buildGoogleMapsUrl = (origin: string, waypoints: string[]) => {
+  const googleMapsUrl = new URL("https://www.google.com/maps/dir/");
+  googleMapsUrl.searchParams.set("api", "1");
+  googleMapsUrl.searchParams.set("travelmode", "walking");
+  googleMapsUrl.searchParams.set("dir_action", "navigate");
+  googleMapsUrl.searchParams.set("origin", origin);
+  googleMapsUrl.searchParams.set("destination", origin);
+  googleMapsUrl.searchParams.set("waypoints", waypoints.join("|"));
+  return googleMapsUrl.toString();
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -50,107 +113,122 @@ serve(async (req) => {
       .map((i: string) => interestLabels[i] || i)
       .join(", ");
 
-    const userPrompt = `Position de départ : ${location}\nTemps disponible : ${duration} minutes\nCentres d'intérêt : ${interestText}`;
+    const routeContext = location.includes(",")
+      ? location.split(",").slice(-3).join(",").trim()
+      : location;
 
-    const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: userPrompt },
-          ],
-          response_format: { type: "json_object" },
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Trop de requêtes, réessayez dans un instant." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Crédits IA épuisés." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
-      throw new Error("AI gateway error");
+    const originResolved = await geocode(location);
+    if (!originResolved) {
+      return new Response(
+        JSON.stringify({ error: "Impossible de localiser précisément le point de départ." }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    let finalSteps: BaladeStep[] | null = null;
+    let finalGoogleMapsUrl: string | null = null;
 
-    let parsed: { steps: Array<{ title: string; description: string; place?: string }> };
-    try {
-      parsed = JSON.parse(content);
-    } catch {
-      console.error("Failed to parse AI response:", content);
-      throw new Error("Invalid AI response format");
-    }
+    for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt++) {
+      const userPrompt = [
+        `Position de départ : ${location}`,
+        `Temps disponible : ${duration} minutes`,
+        `Centres d'intérêt : ${interestText}`,
+        attempt > 0
+          ? `IMPORTANT : ta précédente proposition dépassait le temps demandé à pied. Réduis fortement le rayon pour garantir une boucle totale de ${duration} minutes maximum à pied.`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
 
-    // Resolve every point to precise coordinates.
-    // If any point cannot be geocoded, we refuse to build a Google Maps link
-    // so the app never falls back to an ambiguous route that could default to driving.
-    const geocode = async (q: string, context?: string): Promise<string | null> => {
-      const candidates = [q, context ? `${q}, ${context}` : null].filter(Boolean) as string[];
-
-      for (const candidate of candidates) {
-        try {
-          const r = await fetch(
-            `https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=fr&q=${encodeURIComponent(candidate)}`,
-            { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } }
-          );
-          if (!r.ok) continue;
-          const j = await r.json();
-          if (Array.isArray(j) && j[0]?.lat && j[0]?.lon) {
-            return `${j[0].lat},${j[0].lon}`;
-          }
-        } catch {
-          continue;
+      const response = await fetch(
+        "https://ai.gateway.lovable.dev/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-3-flash-preview",
+            messages: [
+              { role: "system", content: SYSTEM_PROMPT },
+              { role: "user", content: userPrompt },
+            ],
+            response_format: { type: "json_object" },
+          }),
         }
+      );
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          return new Response(
+            JSON.stringify({ error: "Trop de requêtes, réessayez dans un instant." }),
+            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (response.status === 402) {
+          return new Response(
+            JSON.stringify({ error: "Crédits IA épuisés." }),
+            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const t = await response.text();
+        console.error("AI gateway error:", response.status, t);
+        throw new Error("AI gateway error");
       }
 
-      return null;
-    };
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content;
 
-    const routeContext = location.includes(",") ? location.split(",").slice(-1)[0].trim() : location;
+      let parsed: { steps: BaladeStep[] };
+      try {
+        parsed = JSON.parse(content);
+      } catch {
+        console.error("Failed to parse AI response:", content);
+        throw new Error("Invalid AI response format");
+      }
 
-    // Geocoding is best-effort: if Nominatim fails, we fall back to the text label.
-    // Walking mode is enforced by the travelmode=walking URL parameter, not by the coordinates.
-    const originResolved = (await geocode(location)) || location;
-    const waypointsResolved = await Promise.all(
-      (parsed.steps || []).map(async (s) => {
-        const label = s.place || s.title;
-        return (await geocode(label, routeContext)) || label;
-      })
-    );
+      const steps = Array.isArray(parsed.steps) ? parsed.steps.slice(0, 3) : [];
+      if (steps.length !== 3) {
+        continue;
+      }
 
-    const googleMapsUrl = new URL("https://www.google.com/maps/dir/");
-    googleMapsUrl.searchParams.set("api", "1");
-    googleMapsUrl.searchParams.set("travelmode", "walking");
-    googleMapsUrl.searchParams.set("dir_action", "navigate");
-    googleMapsUrl.searchParams.set("origin", originResolved);
-    googleMapsUrl.searchParams.set("destination", originResolved);
-    googleMapsUrl.searchParams.set("waypoints", waypointsResolved.join("|"));
+      const resolvedWaypoints = await Promise.all(
+        steps.map(async (step) => geocode(step.place || step.title, routeContext))
+      );
 
-    const google_maps_url = googleMapsUrl.toString();
+      if (resolvedWaypoints.some((point) => !point)) {
+        continue;
+      }
 
-    return new Response(
-      JSON.stringify({ steps: parsed.steps, google_maps_url }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+      const waypointPoints = resolvedWaypoints.filter(Boolean) as Array<{ coord: string; label: string }>;
+
+      const walkingRoute = await getWalkingRoute([
+        originResolved.coord,
+        ...waypointPoints.map((point) => point.coord),
+        originResolved.coord,
+      ]);
+
+      if (walkingRoute.durationMinutes <= duration) {
+        finalSteps = steps;
+        finalGoogleMapsUrl = buildGoogleMapsUrl(
+          originResolved.coord.split(",").reverse().join(","),
+          waypointPoints.map((point) => point.coord.split(",").reverse().join(","))
+        );
+        break;
+      }
+    }
+
+    if (!finalSteps || !finalGoogleMapsUrl) {
+      return new Response(
+        JSON.stringify({ error: `Impossible de garantir une boucle à pied de ${duration} minutes maximum depuis cette adresse. Essayez un temps plus long ou une adresse plus centrale.` }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    return new Response(JSON.stringify({ steps: finalSteps, google_maps_url: finalGoogleMapsUrl }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (e) {
     console.error("generate-balade error:", e);
     return new Response(
