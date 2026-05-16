@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { motion } from "framer-motion";
-import { ArrowLeft, Landmark, BarChart3, Store, Send, Loader2, CheckCircle2, Search, ArrowRight, X, CreditCard, QrCode } from "lucide-react";
+import { ArrowLeft, Landmark, BarChart3, Store, Loader2, Search, ArrowRight, X, CreditCard, QrCode, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { Slider } from "@/components/ui/slider";
 import logo from "@/assets/logo.png";
@@ -47,9 +47,6 @@ const benefits = [
 ];
 
 const Partners = () => {
-  const [form, setForm] = useState({ name: "", role: "", organization: "", email: "", phone: "", message: "" });
-  const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
   const [population, setPopulation] = useState<number>(8000);
   const [communeQuery, setCommuneQuery] = useState("");
   const { user } = useAuth();
@@ -71,35 +68,6 @@ const Partners = () => {
       returnUrl: `${window.location.origin}/partenaires/paiement-confirme?session_id={CHECKOUT_SESSION_ID}`,
     });
   };
-
-  const scrollToContact = () => {
-    document.getElementById("contact")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    if (communeQuery.trim()) {
-      setForm((prev) => ({ ...prev, organization: prev.organization || communeQuery.trim() }));
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.name.trim() || !form.email.trim() || !form.organization.trim()) {
-      toast.error("Merci de renseigner les champs obligatoires");
-      return;
-    }
-    setLoading(true);
-    const subject = encodeURIComponent(`Demande de démonstration Microbalade — ${form.organization}`);
-    const body = encodeURIComponent(
-      `Nom : ${form.name}\nFonction : ${form.role}\nOrganisation : ${form.organization}\nEmail : ${form.email}\nTéléphone : ${form.phone}\n\nMessage :\n${form.message}`
-    );
-    window.location.href = `mailto:contact@microbalade.fr?subject=${subject}&body=${body}`;
-    setTimeout(() => {
-      setLoading(false);
-      setSent(true);
-      toast.success("Votre demande a été préparée. Merci !");
-    }, 600);
-  };
-
-  const updateField = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
   return (
     <div className="min-h-screen bg-background">
@@ -290,13 +258,6 @@ const Partners = () => {
                 {pricing.year >= 10000 ? "Demander un devis" : "S'abonner — " + formatEuro(pricing.year) + " € / an"}
                 <ArrowRight size={18} />
               </button>
-              <button
-                type="button"
-                onClick={scrollToContact}
-                className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                ou demander une démonstration sans engagement
-              </button>
               <p className="text-[11px] text-muted-foreground text-center">
                 Paiement par carte (immédiat) ou virement SEPA · Sans engagement de durée
               </p>
@@ -304,104 +265,19 @@ const Partners = () => {
           </div>
         </section>
 
-        {/* Contact form */}
-        <section id="contact" className="max-w-2xl mx-auto space-y-6 scroll-mt-20">
-          <div className="text-center space-y-2">
-            <h2 className="text-2xl md:text-3xl font-bold text-foreground">Demandez une démonstration</h2>
-            <p className="text-muted-foreground">
-              Élus, agents, responsables tourisme : laissez-nous vos coordonnées, nous vous recontactons sous 48h.
-            </p>
-          </div>
-
-          {sent ? (
-            <div className="glass-card rounded-2xl p-8 text-center space-y-3">
-              <CheckCircle2 size={40} className="mx-auto text-primary" />
-              <p className="font-semibold text-foreground">Merci pour votre demande</p>
-              <p className="text-sm text-muted-foreground">
-                Si votre messagerie ne s'est pas ouverte, écrivez-nous directement à{" "}
-                <a href="mailto:contact@microbalade.fr" className="text-primary hover:underline">
-                  contact@microbalade.fr
-                </a>
-                .
-              </p>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="glass-card rounded-2xl p-6 md:p-8 space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nom *</label>
-                  <input
-                    required
-                    value={form.name}
-                    onChange={updateField("name")}
-                    className="w-full bg-secondary rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fonction</label>
-                  <input
-                    value={form.role}
-                    onChange={updateField("role")}
-                    placeholder="Maire, adjoint, directeur OT…"
-                    className="w-full bg-secondary rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Commune / Office *
-                </label>
-                <input
-                  required
-                  value={form.organization}
-                  onChange={updateField("organization")}
-                  className="w-full bg-secondary rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
-              </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Email *</label>
-                  <input
-                    required
-                    type="email"
-                    value={form.email}
-                    onChange={updateField("email")}
-                    className="w-full bg-secondary rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Téléphone</label>
-                  <input
-                    type="tel"
-                    value={form.phone}
-                    onChange={updateField("phone")}
-                    className="w-full bg-secondary rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Message</label>
-                <textarea
-                  rows={4}
-                  value={form.message}
-                  onChange={updateField("message")}
-                  placeholder="Parlez-nous de votre projet…"
-                  className="w-full bg-secondary rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-primary text-primary-foreground font-semibold py-3.5 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70"
-              >
-                {loading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                Envoyer ma demande
-              </button>
-              <p className="text-[11px] text-muted-foreground text-center">
-                Vos informations restent confidentielles et ne sont utilisées que pour vous recontacter.
-              </p>
-            </form>
-          )}
+        {/* Contact CTA */}
+        <section className="max-w-2xl mx-auto text-center space-y-5">
+          <h2 className="text-2xl md:text-3xl font-bold text-foreground">Une question ?</h2>
+          <p className="text-muted-foreground">
+            Notre équipe est à votre écoute pour échanger sur votre projet.
+          </p>
+          <Link
+            to="/contact"
+            className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground font-semibold px-6 py-3.5 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:scale-[1.02] active:scale-[0.99] transition-all"
+          >
+            <Mail size={18} />
+            Contactez-nous
+          </Link>
         </section>
       </main>
 
