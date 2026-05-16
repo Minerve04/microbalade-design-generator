@@ -154,10 +154,53 @@ export default function CommuneDashboard() {
         setProfile(data as CommuneProfile);
         setLienAction(data.lien_action ?? "");
         setCodePostal(data.code_postal ?? "");
+        // Auto-fill code postal via Nominatim si vide
+        if (!data.code_postal && data.nom_collectivite) {
+          const cleanName = data.nom_collectivite.replace(/^(mairie|commune|ville)\s+(de\s+|du\s+|des\s+|d')?/i, "").trim();
+          try {
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanName + ", France")}&format=json&addressdetails=1&limit=1`,
+              { headers: { "Accept-Language": "fr" } }
+            );
+            const json = await res.json();
+            const postcode = json?.[0]?.address?.postcode;
+            if (postcode) {
+              setCodePostal(postcode);
+              await supabase
+                .from("commune_profiles")
+                .update({ code_postal: postcode })
+                .eq("user_id", user.id);
+              setProfile({ ...(data as CommuneProfile), code_postal: postcode });
+            }
+          } catch (e) {
+            console.warn("Nominatim auto-fill failed", e);
+          }
+        }
       }
       setLoadingProfile(false);
     })();
   }, [user]);
+
+  const detectCodePostal = async () => {
+    if (!profile?.nom_collectivite) return;
+    const cleanName = profile.nom_collectivite.replace(/^(mairie|commune|ville)\s+(de\s+|du\s+|des\s+|d')?/i, "").trim();
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanName + ", France")}&format=json&addressdetails=1&limit=1`,
+        { headers: { "Accept-Language": "fr" } }
+      );
+      const json = await res.json();
+      const postcode = json?.[0]?.address?.postcode;
+      if (postcode) {
+        setCodePostal(postcode);
+        toast.success(`Code postal détecté : ${postcode}`);
+      } else {
+        toast.error("Code postal introuvable, merci de le saisir manuellement");
+      }
+    } catch {
+      toast.error("Détection impossible");
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -764,12 +807,21 @@ export default function CommuneDashboard() {
                   <h2 className="font-semibold text-foreground mb-1">Code postal</h2>
                   <p className="text-xs text-muted-foreground">Pour ciblage des statistiques.</p>
                 </div>
-                <input
-                  value={codePostal}
-                  onChange={(e) => setCodePostal(e.target.value)}
-                  placeholder="62500"
-                  className="w-full bg-secondary rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
+                <div className="flex gap-2">
+                  <input
+                    value={codePostal}
+                    onChange={(e) => setCodePostal(e.target.value)}
+                    placeholder="62500"
+                    className="flex-1 bg-secondary rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={detectCodePostal}
+                    className="px-4 py-3 rounded-xl text-sm font-medium bg-secondary text-foreground hover:bg-secondary/70 transition"
+                  >
+                    Détecter
+                  </button>
+                </div>
               </div>
 
               <button
