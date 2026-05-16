@@ -30,7 +30,12 @@ const corsHeaders = {
 type BaladeStep = { title: string; description: string; place?: string };
 type Waypoint = { coord: string; label: string };
 type RouteGeometryPoint = [number, number];
-type RouteMeasurement = { durationMinutes: number; distanceMeters: number; overlapRatio: number };
+type RouteMeasurement = {
+  durationMinutes: number;
+  distanceMeters: number;
+  overlapRatio: number;
+  geometry: RouteGeometryPoint[];
+};
 type CandidateLoop = { coords: string[]; route: RouteMeasurement; loopAreaSqMeters: number };
 
 // Google Maps walking pace ≈ 5 km/h ≈ 83 m/min. We align on Google's pace so that
@@ -204,7 +209,22 @@ const getWalkingRoute = async (coordinates: string[]): Promise<RouteMeasurement>
     durationMinutes,
     distanceMeters,
     overlapRatio: computeOverlapRatio(geometry),
+    geometry,
   };
+};
+
+const sampleRouteGeometry = (geometry: RouteGeometryPoint[], desiredPoints = 8) => {
+  if (geometry.length <= desiredPoints) return geometry;
+  const result: RouteGeometryPoint[] = [];
+  const lastIndex = geometry.length - 1;
+  for (let i = 1; i <= desiredPoints; i += 1) {
+    const index = Math.round((i * lastIndex) / (desiredPoints + 1));
+    const point = geometry[Math.min(lastIndex, Math.max(0, index))];
+    if (!point) continue;
+    const previous = result[result.length - 1];
+    if (!previous || previous[0] !== point[0] || previous[1] !== point[1]) result.push(point);
+  }
+  return result;
 };
 
 const offsetCoordinate = (coord: string, distanceMeters: number, bearingDegrees: number) => {
@@ -313,14 +333,20 @@ const computeLoopAreaSqMeters = (coordinates: string[]) => {
   return Math.abs(area) / 2;
 };
 
-const buildGoogleMapsUrl = (origin: string, waypoints: string[]) => {
+const buildGoogleMapsUrl = (origin: string, routeGeometry: RouteGeometryPoint[]) => {
   const url = new URL("https://www.google.com/maps/dir/");
+  const sampledWaypoints = sampleRouteGeometry(routeGeometry)
+    .map(([lon, lat]) => `${lat.toFixed(6)},${lon.toFixed(6)}`)
+    .filter((coord) => coord !== origin);
+
   url.searchParams.set("api", "1");
   url.searchParams.set("travelmode", "walking");
   url.searchParams.set("dir_action", "navigate");
   url.searchParams.set("origin", origin);
   url.searchParams.set("destination", origin);
-  url.searchParams.set("waypoints", waypoints.join("|"));
+  if (sampledWaypoints.length > 0) {
+    url.searchParams.set("waypoints", sampledWaypoints.join("|"));
+  }
   return url.toString();
 };
 
@@ -587,7 +613,7 @@ serve(async (req) => {
       steps,
       google_maps_url: buildGoogleMapsUrl(
         toLatLng(originResolved.coord),
-        waypoints.map((p) => toLatLng(p.coord))
+        selected.route.geometry
       ),
       walking_minutes: selected.route.durationMinutes,
       walking_distance_meters: selected.route.distanceMeters,
