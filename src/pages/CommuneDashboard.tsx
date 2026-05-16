@@ -203,15 +203,20 @@ export default function CommuneDashboard() {
   };
 
   useEffect(() => {
+    if (!profile?.code_postal) {
+      setSearches([]);
+      return;
+    }
     (async () => {
       const { data } = await supabase
         .from("statistiques_recherches")
         .select("id, created_at, ville, origin_address, duree_minutes, themes, monuments")
+        .eq("code_postal", profile.code_postal)
         .order("created_at", { ascending: false })
         .limit(1000);
       if (data) setSearches(data as SearchRow[]);
     })();
-  }, []);
+  }, [profile?.code_postal]);
 
   // Filtered dataset
   const filtered = useMemo(() => {
