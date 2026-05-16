@@ -27,7 +27,6 @@ export function getCommunePriceForPopulation(pop: number): {
   amountEur: number;
   label: string;
 } {
-  if (pop >= 1_000_001) return { priceId: "commune_million_year", amountEur: 50000, label: "1 million d'habitants ou plus" };
   if (pop >= 250_000) return { priceId: "commune_metropole_xl_year", amountEur: 10000, label: "Grande métropole" };
   if (pop >= 100_000) return { priceId: "commune_metropole_year", amountEur: 6000, label: "Métropole" };
   if (pop >= 50_000) return { priceId: "commune_grande_ville_year", amountEur: 3000, label: "Grande ville" };
@@ -38,7 +37,6 @@ export function getCommunePriceForPopulation(pop: number): {
 
 // Reverse map : retrouve le priceId à partir du prix annuel stocké sur le profil commune.
 export function getCommunePriceIdFromAmount(amountEur: number): string {
-  if (amountEur >= 50000) return "commune_million_year";
   if (amountEur >= 10000) return "commune_metropole_xl_year";
   if (amountEur >= 6000) return "commune_metropole_year";
   if (amountEur >= 3000) return "commune_grande_ville_year";

@@ -13,7 +13,6 @@ import { getCommunePriceForPopulation } from "@/lib/stripe";
 const SLIDER_MAX = 1_000_001; // sentinel for "1 million et plus"
 
 function getPricing(pop: number) {
-  if (pop >= SLIDER_MAX) return { year: 50000, month: null, label: "1 million d'habitants ou plus" };
   if (pop >= 250_000) return { year: 10000, month: null, label: `${pop.toLocaleString("fr-FR")} habitants` };
   if (pop >= 100_000) return { year: 6000, month: 500, label: `${pop.toLocaleString("fr-FR")} habitants` };
   if (pop >= 50_000) return { year: 3000, month: 250, label: `${pop.toLocaleString("fr-FR")} habitants` };
