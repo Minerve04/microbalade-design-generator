@@ -32,6 +32,28 @@ interface PartnerCommune {
 
 const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
   const displayedMinutes = result.walking_minutes ?? duration;
+  const [partner, setPartner] = useState<PartnerCommune | null>(null);
+
+  useEffect(() => {
+    const cp = result.origin_postcode?.trim();
+    if (!cp) {
+      setPartner(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("communes_partenaires")
+        .select("nom, logo_url")
+        .eq("code_postal", cp)
+        .eq("active", true)
+        .maybeSingle();
+      if (!cancelled && !error && data) setPartner(data as PartnerCommune);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [result.origin_postcode]);
 
   const handleOpenGoogleMaps = () => {
     try {
