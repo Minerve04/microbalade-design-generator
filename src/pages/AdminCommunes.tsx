@@ -387,6 +387,32 @@ const AdminCommunes = () => {
             </div>
           </Card>
 
+          {(() => {
+            const balades = stats.length;
+            const aiCalls = balades * 2; // 1 plan + 1 titre par balade
+            const costUsd = balades * 0.002; // estimation Gemini 2.5 Flash
+            return (
+              <Card className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                <div>
+                  <div className="text-2xl font-semibold">{balades}</div>
+                  <div className="text-xs text-muted-foreground">Balades générées</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-semibold">{aiCalls}</div>
+                  <div className="text-xs text-muted-foreground">Appels IA (Gemini)</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-semibold">${costUsd.toFixed(3)}</div>
+                  <div className="text-xs text-muted-foreground">Coût IA estimé</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-semibold">${balades ? (costUsd / balades).toFixed(4) : "0.0000"}</div>
+                  <div className="text-xs text-muted-foreground">Coût / balade</div>
+                </div>
+              </Card>
+            );
+          })()}
+
           <Card className="p-0 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
