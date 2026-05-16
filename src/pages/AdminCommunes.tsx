@@ -58,6 +58,44 @@ const AdminCommunes = () => {
   const [statsLoading, setStatsLoading] = useState(false);
   const [filterCommune, setFilterCommune] = useState<string>("all");
 
+  // Chorus
+  const [chorus, setChorus] = useState<any[]>([]);
+  const [chorusLoading, setChorusLoading] = useState(false);
+  const [chorusFilter, setChorusFilter] = useState<string>("pending");
+
+  const loadChorus = async () => {
+    setChorusLoading(true);
+    try {
+      const res = await call("list_chorus", { status: chorusFilter });
+      setChorus(res.data ?? []);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setChorusLoading(false);
+    }
+  };
+
+  const markChorusPaid = async (user_id: string) => {
+    if (!confirm("Marquer comme payé et activer l'abonnement ?")) return;
+    try {
+      await call("mark_chorus_paid", { user_id });
+      toast.success("Abonnement activé");
+      loadChorus();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  const markChorusOverdue = async (user_id: string) => {
+    try {
+      await call("mark_chorus_overdue", { user_id });
+      toast.success("Marqué en retard");
+      loadChorus();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
   const call = async (action: string, payload?: any) => {
     const { data, error } = await supabase.functions.invoke("admin-communes", {
       body: { password, action, payload },
