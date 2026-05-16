@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { MapPin, Navigation, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface BaladeStep {
   title: string;
@@ -13,6 +15,8 @@ export interface BaladeResult {
   google_maps_url: string;
   walking_minutes?: number;
   walking_distance_meters?: number;
+  origin_postcode?: string | null;
+  origin_city?: string | null;
 }
 
 interface ResultScreenProps {
@@ -21,8 +25,35 @@ interface ResultScreenProps {
   onBack: () => void;
 }
 
+interface PartnerCommune {
+  nom: string;
+  logo_url: string | null;
+}
+
 const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
   const displayedMinutes = result.walking_minutes ?? duration;
+  const [partner, setPartner] = useState<PartnerCommune | null>(null);
+
+  useEffect(() => {
+    const cp = result.origin_postcode?.trim();
+    if (!cp) {
+      setPartner(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("communes_partenaires")
+        .select("nom, logo_url")
+        .eq("code_postal", cp)
+        .eq("active", true)
+        .maybeSingle();
+      if (!cancelled && !error && data) setPartner(data as PartnerCommune);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [result.origin_postcode]);
 
   const handleOpenGoogleMaps = () => {
     try {
@@ -44,6 +75,26 @@ const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col pb-8">
+      {partner && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="w-full bg-primary/5 border-b border-primary/15 px-5 py-2.5 flex items-center justify-center gap-2.5"
+        >
+          {partner.logo_url && (
+            <img
+              src={partner.logo_url}
+              alt={`Logo Ville de ${partner.nom}`}
+              className="h-6 w-auto object-contain"
+              loading="lazy"
+            />
+          )}
+          <p className="text-xs font-medium text-foreground/80">
+            En partenariat avec la Ville de <span className="font-semibold text-foreground">{partner.nom}</span>
+          </p>
+        </motion.div>
+      )}
       {/* Map placeholder */}
       <div className="relative w-full h-56 bg-secondary overflow-hidden">
         <div className="absolute inset-0 flex items-center justify-center">
