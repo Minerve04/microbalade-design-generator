@@ -403,12 +403,12 @@ export default function CommuneDashboard() {
                   Votre compte est créé mais aucun paiement n'a été enregistré. Choisissez votre formule pour activer votre dashboard et l'affichage de votre logo sur Microbalade.
                 </p>
               </div>
-              <Link
-                to="/partenaires"
+              <button
+                onClick={handlePay}
                 className="shrink-0 inline-flex items-center justify-center bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:opacity-90 transition"
               >
                 Payer mon abonnement
-              </Link>
+              </button>
             </div>
           )}
           {tab === "overview" && (
