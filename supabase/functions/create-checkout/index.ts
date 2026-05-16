@@ -138,6 +138,7 @@ Deno.serve(async (req) => {
       customer_update: { name: "auto", address: "auto" },
       tax_id_collection: { enabled: true },
       billing_address_collection: "required",
+      allow_promotion_codes: true,
       metadata: { userId: user.id },
       subscription_data: { metadata: { userId: user.id } },
     });
