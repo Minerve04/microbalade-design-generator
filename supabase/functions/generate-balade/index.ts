@@ -267,6 +267,7 @@ Règles strictes :
 
 const generateAiDescriptions = async (
   originLabel: string,
+  city: string | undefined,
   waypointLabels: string[],
   interests: string[],
   walkingMinutes: number
@@ -284,11 +285,11 @@ const generateAiDescriptions = async (
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "google/gemini-2.5-pro",
           messages: [
             {
               role: "user",
-              content: buildAiPrompt(originLabel, waypointLabels, interests, walkingMinutes),
+              content: buildAiPrompt(originLabel, city, waypointLabels, interests, walkingMinutes),
             },
           ],
           response_format: { type: "json_object" },
