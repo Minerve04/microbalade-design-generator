@@ -749,3 +749,11 @@ function InfoLine({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+function EmptyChart() {
+  return (
+    <div className="h-64 flex items-center justify-center text-sm text-muted-foreground">
+      Aucune donnée sur la période sélectionnée.
+    </div>
+  );
+}
