@@ -272,7 +272,6 @@ Règles strictes :
 - Réponds STRICTEMENT en JSON valide :
 {"steps":[{"description":"..."},{"description":"..."},{"description":"..."}]}`;
 };
-};
 
 const generateAiDescriptions = async (
   originLabel: string,
