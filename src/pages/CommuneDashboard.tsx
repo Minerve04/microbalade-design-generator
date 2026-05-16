@@ -241,7 +241,7 @@ export default function CommuneDashboard() {
 
   const downloadCsv = () => {
     const header = ["Date", "Point de départ", "Durée (min)", "Étapes"];
-    const rows = searches.map((s) => [
+    const rows = filtered.map((s) => [
       new Date(s.created_at).toLocaleDateString("fr-FR"),
       (s.origin_address ?? s.ville ?? "").replace(/[,;]/g, " "),
       s.duree_minutes ?? "",
