@@ -54,6 +54,15 @@ interface CommuneProfile {
   abonnement_label: string;
   abonnement_prix_annuel: number;
   abonnement_renouvellement: string;
+  siret?: string | null;
+  numero_engagement?: string | null;
+  code_service_chorus?: string | null;
+  adresse_facturation?: string | null;
+  email_comptabilite?: string | null;
+  mode_paiement?: string | null;
+  chorus_status?: string | null;
+  chorus_requested_at?: string | null;
+  chorus_due_date?: string | null;
 }
 
 interface SearchRow {
