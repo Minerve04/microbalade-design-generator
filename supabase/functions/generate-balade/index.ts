@@ -125,24 +125,17 @@ serve(async (req) => {
       return null;
     };
 
-    const originResolved = await geocode(location);
-    if (!originResolved) {
-      return new Response(
-        JSON.stringify({ error: "Impossible de calculer un itinéraire piéton précis depuis ce point de départ." }),
-        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const routeContext = location.includes(",") ? location.split(",").slice(-1)[0].trim() : location;
+
+    // Geocoding is best-effort: if Nominatim fails, we fall back to the text label.
+    // Walking mode is enforced by the travelmode=walking URL parameter, not by the coordinates.
+    const originResolved = (await geocode(location)) || location;
     const waypointsResolved = await Promise.all(
-      (parsed.steps || []).map((s) => geocode(s.place || s.title, routeContext))
+      (parsed.steps || []).map(async (s) => {
+        const label = s.place || s.title;
+        return (await geocode(label, routeContext)) || label;
+      })
     );
-    if (waypointsResolved.some((point) => !point)) {
-      return new Response(
-        JSON.stringify({ error: "Impossible de verrouiller ce parcours en mode marche uniquement. Réessayez pour obtenir une autre microbalade." }),
-        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
 
     const googleMapsUrl = new URL("https://www.google.com/maps/dir/");
     googleMapsUrl.searchParams.set("api", "1");
@@ -150,7 +143,7 @@ serve(async (req) => {
     googleMapsUrl.searchParams.set("dir_action", "navigate");
     googleMapsUrl.searchParams.set("origin", originResolved);
     googleMapsUrl.searchParams.set("destination", originResolved);
-    googleMapsUrl.searchParams.set("waypoints", (waypointsResolved as string[]).join("|"));
+    googleMapsUrl.searchParams.set("waypoints", waypointsResolved.join("|"));
 
     const google_maps_url = googleMapsUrl.toString();
 
