@@ -765,8 +765,8 @@ export default function CommuneDashboard() {
                   </div>
                   {(() => {
                     const map: Record<string, { label: string; cls: string }> = {
-                      active: { label: "Actif", cls: "text-primary bg-primary/10" },
-                      trialing: { label: "Période d'essai", cls: "text-primary bg-primary/10" },
+                      active: { label: "Actif", cls: "text-emerald-700 bg-emerald-100" },
+                      trialing: { label: "Inactif — paiement requis", cls: "text-destructive bg-destructive/10" },
                       past_due: { label: "Paiement en retard", cls: "text-amber-700 bg-amber-100" },
                       unpaid: { label: "Impayé", cls: "text-destructive bg-destructive/10" },
                       canceled: { label: "Annulé", cls: "text-destructive bg-destructive/10" },
