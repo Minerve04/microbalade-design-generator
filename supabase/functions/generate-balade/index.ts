@@ -412,15 +412,15 @@ serve(async (req) => {
       label: waypointLabels[index],
     }));
 
-    const [aiDescriptions, originDetails] = await Promise.all([
-      generateAiDescriptions(
-        originResolved.label,
-        waypointLabels,
-        interests as string[],
-        selected.route.durationMinutes
-      ),
-      reverseGeocodeDetails(originResolved.coord),
-    ]);
+    // Resolve city FIRST so the AI prompt can be anchored to it.
+    const originDetails = await reverseGeocodeDetails(originResolved.coord);
+    const aiDescriptions = await generateAiDescriptions(
+      originResolved.label,
+      originDetails.city,
+      waypointLabels,
+      interests as string[],
+      selected.route.durationMinutes
+    );
 
     const steps = buildSteps(waypoints, aiDescriptions);
 
