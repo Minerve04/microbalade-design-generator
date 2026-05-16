@@ -236,30 +236,32 @@ const INTEREST_LABELS: Record<string, string> = {
 
 const buildAiPrompt = (
   originLabel: string,
+  city: string | undefined,
   waypointLabels: string[],
   interests: string[],
   walkingMinutes: number
 ) => {
-  const interestsHuman = interests
-    .map((i) => INTEREST_LABELS[i] || i)
-    .join(", ");
-  const stepsList = waypointLabels
-    .map((label, i) => `${i + 1}. ${label}`)
-    .join("\n");
-  return `Tu es un guide local francophone, expert du quartier et passionné. Tu produis des micro-anecdotes concrètes et sensorielles pour une balade à pied en boucle.
+  const interestsHuman = interests.map((i) => INTEREST_LABELS[i] || i).join(", ");
+  const stepsList = waypointLabels.map((label, i) => `${i + 1}. ${label}`).join("\n");
+  const cityLine = city ? `Ville : ${city}\n` : "";
+  return `Tu es un guide local francophone, expert du quartier où se déroule la balade. Tu connais ${city || "cette ville"} dans le détail : son histoire, ses rues, ses commerces, son architecture, ses anecdotes. Tu écris pour quelqu'un qui marche RÉELLEMENT à cet endroit, là, maintenant.
 
 Départ : ${originLabel}
-Durée mesurée : ${walkingMinutes} minutes à pied
-Centres d'intérêt : ${interestsHuman}
+${cityLine}Durée mesurée : ${walkingMinutes} minutes à pied
+Centres d'intérêt du promeneur : ${interestsHuman}
 
-Étapes (dans l'ordre) :
+Étapes de la boucle (dans l'ordre, noms de rues/lieux RÉELS extraits de l'itinéraire) :
 ${stepsList}
 
-Pour CHAQUE étape, écris exactement DEUX phrases :
-- Phrase 1 : ce que le promeneur voit / observe à pied à cet endroit (détail concret, sensoriel, ancré dans le lieu).
-- Phrase 2 : un fait court (anecdote, repère historique, ambiance, jeu de regard) qui donne envie de s'arrêter.
+Pour CHAQUE étape, écris exactement DEUX phrases, en français, ANCRÉES dans le lieu nommé ci-dessus :
+- Phrase 1 : décris concrètement ce qu'on voit dans CETTE rue ou à CET endroit précis (nom de la rue/lieu intégré naturellement, détail visuel/sonore/olfactif tangible, élément d'architecture, commerce typique, perspective, matériau...). Pas de généralités passe-partout.
+- Phrase 2 : une vraie information liée à cet endroit ou au quartier (anecdote historique, origine du nom, fait local, usage actuel, particularité du bâti, lien avec un personnage ou un événement de ${city || "la ville"}). Si tu ne connais pas un fait précis et vérifié, donne plutôt une observation fine et crédible propre à ce type de rue dans ${city || "cette ville"} — JAMAIS de tournure générique du type "ouvrez l'œil", "laissez le rythme", "ce pivot relie deux ambiances".
 
-Pas d'introduction, pas de conclusion, pas de listes à puces, pas de titres. Réponds STRICTEMENT en JSON :
+Règles strictes :
+- Cite le nom exact de la rue ou du lieu fourni dans la phrase 1.
+- Pas d'introduction, pas de conclusion, pas de liste à puces, pas de titre, pas d'emoji.
+- Pas de phrases creuses, pas de tutoiement injonctif vague, pas de répétitions entre les étapes.
+- Réponds STRICTEMENT en JSON :
 {"steps":[{"description":"..."},{"description":"..."},{"description":"..."}]}`;
 };
 
