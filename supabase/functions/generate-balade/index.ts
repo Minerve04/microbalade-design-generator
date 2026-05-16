@@ -171,9 +171,13 @@ const offsetCoordinate = (coord: string, distanceMeters: number, bearingDegrees:
 };
 
 const getSafeDurationLimit = (duration: number) => {
-  const buffer = duration >= 45 ? 4 : duration >= 30 ? 3 : 2;
+  // Tight buffer: we want the loop to be as close as possible to the requested duration.
+  const buffer = duration >= 60 ? 2 : 1;
   return Math.max(10, duration - buffer);
 };
+
+// Minimum acceptable duration: we refuse loops that are way under target (e.g. half).
+const getMinAcceptableDuration = (duration: number) => Math.max(10, Math.floor(duration * 0.85));
 
 // Build a wide pool of candidate loops sized for the EFFECTIVE walking speed.
 // We over-sample (more angles, more radii, including tiny emergency loops) so that
@@ -184,11 +188,12 @@ const createCandidateLoops = (originCoord: string, duration: number) => {
   const targetWalkingMeters = safeLimit * EFFECTIVE_WALKING_SPEED_M_PER_MIN;
   // 3-waypoint loop perimeter ≈ ~7 * radius after street detours.
   const baseRadius = Math.max(60, Math.min(500, Math.round(targetWalkingMeters / 7)));
-  const radiusFactors = [0.35, 0.5, 0.65, 0.8, 0.95, 1.1];
+  // Favor radii near and slightly above target so we can hit the requested duration precisely.
+  const radiusFactors = [0.85, 0.95, 1.0, 1.05, 1.15, 1.25, 0.7];
   const dynamicRadii = radiusFactors.map((f) => Math.max(50, Math.round(baseRadius * f)));
-  // Emergency tiny loops always included so we have something even when streets are sparse.
-  const emergencyRadii = [70, 110, 160];
-  const radii = Array.from(new Set([...emergencyRadii, ...dynamicRadii]));
+  // Emergency tiny loops kept as a last-resort fallback only.
+  const emergencyRadii = [120, 180];
+  const radii = Array.from(new Set([...dynamicRadii, ...emergencyRadii]));
 
   const angleTemplates = [
     [0, 120, 240],
@@ -231,35 +236,38 @@ const INTEREST_LABELS: Record<string, string> = {
 
 const buildAiPrompt = (
   originLabel: string,
+  city: string | undefined,
   waypointLabels: string[],
   interests: string[],
   walkingMinutes: number
 ) => {
-  const interestsHuman = interests
-    .map((i) => INTEREST_LABELS[i] || i)
-    .join(", ");
-  const stepsList = waypointLabels
-    .map((label, i) => `${i + 1}. ${label}`)
-    .join("\n");
-  return `Tu es un guide local francophone, expert du quartier et passionné. Tu produis des micro-anecdotes concrètes et sensorielles pour une balade à pied en boucle.
+  const interestsHuman = interests.map((i) => INTEREST_LABELS[i] || i).join(", ");
+  const stepsList = waypointLabels.map((label, i) => `${i + 1}. ${label}`).join("\n");
+  const cityLine = city ? `Ville : ${city}\n` : "";
+  return `Tu es un guide local francophone, expert du quartier où se déroule la balade. Tu connais ${city || "cette ville"} dans le détail : son histoire, ses rues, ses commerces, son architecture, ses anecdotes. Tu écris pour quelqu'un qui marche RÉELLEMENT à cet endroit, là, maintenant.
 
 Départ : ${originLabel}
-Durée mesurée : ${walkingMinutes} minutes à pied
-Centres d'intérêt : ${interestsHuman}
+${cityLine}Durée mesurée : ${walkingMinutes} minutes à pied
+Centres d'intérêt du promeneur : ${interestsHuman}
 
-Étapes (dans l'ordre) :
+Étapes de la boucle (dans l'ordre, noms de rues/lieux RÉELS extraits de l'itinéraire) :
 ${stepsList}
 
-Pour CHAQUE étape, écris exactement DEUX phrases :
-- Phrase 1 : ce que le promeneur voit / observe à pied à cet endroit (détail concret, sensoriel, ancré dans le lieu).
-- Phrase 2 : un fait court (anecdote, repère historique, ambiance, jeu de regard) qui donne envie de s'arrêter.
+Pour CHAQUE étape, écris exactement DEUX phrases, en français, ANCRÉES dans le lieu nommé ci-dessus :
+- Phrase 1 : décris concrètement ce qu'on voit dans CETTE rue ou à CET endroit précis (nom de la rue/lieu intégré naturellement, détail visuel/sonore/olfactif tangible, élément d'architecture, commerce typique, perspective, matériau...). Pas de généralités passe-partout.
+- Phrase 2 : une vraie information liée à cet endroit ou au quartier (anecdote historique, origine du nom, fait local, usage actuel, particularité du bâti, lien avec un personnage ou un événement de ${city || "la ville"}). Si tu ne connais pas un fait précis et vérifié, donne plutôt une observation fine et crédible propre à ce type de rue dans ${city || "cette ville"} — JAMAIS de tournure générique du type "ouvrez l'œil", "laissez le rythme", "ce pivot relie deux ambiances".
 
-Pas d'introduction, pas de conclusion, pas de listes à puces, pas de titres. Réponds STRICTEMENT en JSON :
+Règles strictes :
+- Cite le nom exact de la rue ou du lieu fourni dans la phrase 1.
+- Pas d'introduction, pas de conclusion, pas de liste à puces, pas de titre, pas d'emoji.
+- Pas de phrases creuses, pas de tutoiement injonctif vague, pas de répétitions entre les étapes.
+- Réponds STRICTEMENT en JSON :
 {"steps":[{"description":"..."},{"description":"..."},{"description":"..."}]}`;
 };
 
 const generateAiDescriptions = async (
   originLabel: string,
+  city: string | undefined,
   waypointLabels: string[],
   interests: string[],
   walkingMinutes: number
@@ -277,11 +285,11 @@ const generateAiDescriptions = async (
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "google/gemini-2.5-pro",
           messages: [
             {
               role: "user",
-              content: buildAiPrompt(originLabel, waypointLabels, interests, walkingMinutes),
+              content: buildAiPrompt(originLabel, city, waypointLabels, interests, walkingMinutes),
             },
           ],
           response_format: { type: "json_object" },
@@ -354,12 +362,15 @@ serve(async (req) => {
     const safeLimit = getSafeDurationLimit(duration);
     const loops = createCandidateLoops(originResolved.coord, duration);
 
-    let bestWithinSafe: { coords: string[]; route: RouteMeasurement } | null = null;
+    const minAcceptable = getMinAcceptableDuration(duration);
+
+    // Pick the candidate whose measured duration is CLOSEST to the requested duration
+    // (without exceeding it). We evaluate ALL candidates — no early exit — so a tiny
+    // 15-min loop never wins over a true 29-min loop for a 30-min request.
+    let bestCloseToTarget: { coords: string[]; route: RouteMeasurement } | null = null;
     let bestWithinHard: { coords: string[]; route: RouteMeasurement } | null = null;
 
-    // Evaluate candidates in parallel chunks (faster) with early exit once we have
-    // a result close to the safe budget.
-    const CHUNK = 6;
+    const CHUNK = 8;
     for (let i = 0; i < loops.length; i += CHUNK) {
       const chunk = loops.slice(i, i + CHUNK);
       const results = await Promise.allSettled(
@@ -372,22 +383,20 @@ serve(async (req) => {
       for (const r of results) {
         if (r.status !== "fulfilled") continue;
         const { loop, route } = r.value;
-        if (route.durationMinutes <= safeLimit) {
-          if (!bestWithinSafe || route.durationMinutes > bestWithinSafe.route.durationMinutes) {
-            bestWithinSafe = { coords: loop, route };
-          }
-        }
         if (route.durationMinutes <= duration) {
           if (!bestWithinHard || route.durationMinutes > bestWithinHard.route.durationMinutes) {
             bestWithinHard = { coords: loop, route };
           }
+          if (route.durationMinutes >= minAcceptable) {
+            if (!bestCloseToTarget || route.durationMinutes > bestCloseToTarget.route.durationMinutes) {
+              bestCloseToTarget = { coords: loop, route };
+            }
+          }
         }
       }
-      // Early exit when we have a result already filling at least 80% of the safe budget.
-      if (bestWithinSafe && bestWithinSafe.route.durationMinutes >= safeLimit * 0.8) break;
     }
 
-    const selected = bestWithinSafe || bestWithinHard;
+    const selected = bestCloseToTarget || bestWithinHard;
     if (!selected) {
       return businessError(
         `Impossible de garantir un trajet Google Maps à pied dans ${duration} minutes maximum depuis cette adresse. Essayez une adresse plus centrale ou un temps plus long.`
@@ -403,15 +412,15 @@ serve(async (req) => {
       label: waypointLabels[index],
     }));
 
-    const [aiDescriptions, originDetails] = await Promise.all([
-      generateAiDescriptions(
-        originResolved.label,
-        waypointLabels,
-        interests as string[],
-        selected.route.durationMinutes
-      ),
-      reverseGeocodeDetails(originResolved.coord),
-    ]);
+    // Resolve city FIRST so the AI prompt can be anchored to it.
+    const originDetails = await reverseGeocodeDetails(originResolved.coord);
+    const aiDescriptions = await generateAiDescriptions(
+      originResolved.label,
+      originDetails.city,
+      waypointLabels,
+      interests as string[],
+      selected.route.durationMinutes
+    );
 
     const steps = buildSteps(waypoints, aiDescriptions);
 
