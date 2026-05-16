@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { MapPin, Navigation, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface BaladeStep {
   title: string;
@@ -13,12 +15,19 @@ export interface BaladeResult {
   google_maps_url: string;
   walking_minutes?: number;
   walking_distance_meters?: number;
+  origin_postcode?: string | null;
+  origin_city?: string | null;
 }
 
 interface ResultScreenProps {
   result: BaladeResult;
   duration: number;
   onBack: () => void;
+}
+
+interface PartnerCommune {
+  nom: string;
+  logo_url: string | null;
 }
 
 const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
