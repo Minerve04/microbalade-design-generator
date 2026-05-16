@@ -34,7 +34,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommuneSubscription } from "@/hooks/useCommuneSubscription";
 import { AlertTriangle, Lock } from "lucide-react";
-import { getStripeEnvironment } from "@/lib/stripe";
+import { getStripeEnvironment, getCommunePriceIdFromAmount } from "@/lib/stripe";
+import { useStripeCheckout } from "@/hooks/useStripeCheckout";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import logo from "@/assets/logo.png";
 import CommuneQrCode from "@/components/CommuneQrCode";
 import { QrCode } from "lucide-react";
@@ -88,6 +90,16 @@ export default function CommuneDashboard() {
   // "locked" : abonnement cassé (impayé, annulé…) — pas pour un compte jamais payé.
   const locked = !loadingSub && !isActive && status !== "trialing";
   const neverPaid = !loadingSub && status === "trialing";
+  const { openCheckout, closeCheckout, isOpen: checkoutOpen, checkoutElement } = useStripeCheckout();
+
+  const handlePay = () => {
+    const amount = profile?.abonnement_prix_annuel ?? 600;
+    const priceId = getCommunePriceIdFromAmount(amount);
+    openCheckout({
+      priceId,
+      returnUrl: `${window.location.origin}/dashboard/commune?checkout=success`,
+    });
+  };
 
   // Force user onto billing tab only when subscription is broken
   useEffect(() => {
@@ -391,12 +403,12 @@ export default function CommuneDashboard() {
                   Votre compte est créé mais aucun paiement n'a été enregistré. Choisissez votre formule pour activer votre dashboard et l'affichage de votre logo sur Microbalade.
                 </p>
               </div>
-              <Link
-                to="/partenaires"
+              <button
+                onClick={handlePay}
                 className="shrink-0 inline-flex items-center justify-center bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:opacity-90 transition"
               >
                 Payer mon abonnement
-              </Link>
+              </button>
             </div>
           )}
           {tab === "overview" && (
@@ -453,12 +465,12 @@ export default function CommuneDashboard() {
                   </div>
                 </div>
                 {!isActive ? (
-                  <Link
-                    to="/partenaires"
+                  <button
+                    onClick={handlePay}
                     className="shrink-0 inline-flex items-center justify-center bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:opacity-90 transition"
                   >
                     Payer mon abonnement
-                  </Link>
+                  </button>
                 ) : (
                   <button
                     onClick={() => setTab("profile")}
@@ -825,6 +837,20 @@ export default function CommuneDashboard() {
           )}
         </main>
       </div>
+
+      <Dialog open={checkoutOpen} onOpenChange={(o) => { if (!o) closeCheckout(); }}>
+        <DialogContent className="max-w-2xl p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6">
+            <DialogTitle>Paiement de votre abonnement</DialogTitle>
+            <DialogDescription>
+              {profile?.abonnement_label} – {profile?.abonnement_prix_annuel} € / an. Paiement sécurisé via Stripe.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-4 max-h-[75vh] overflow-y-auto">
+            {checkoutElement}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
