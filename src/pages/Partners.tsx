@@ -1,10 +1,27 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { motion } from "framer-motion";
-import { ArrowLeft, Landmark, BarChart3, Store, Send, Loader2, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Landmark, BarChart3, Store, Send, Loader2, CheckCircle2, Search, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
+import { Slider } from "@/components/ui/slider";
 import logo from "@/assets/logo.png";
+
+const SLIDER_MAX = 1_000_001; // sentinel for "1 million et plus"
+
+function getPricing(pop: number) {
+  if (pop >= SLIDER_MAX) return { year: 50000, month: null, label: "1 million d'habitants ou plus" };
+  if (pop >= 250_000) return { year: 10000, month: null, label: `${pop.toLocaleString("fr-FR")} habitants` };
+  if (pop >= 100_000) return { year: 6000, month: 500, label: `${pop.toLocaleString("fr-FR")} habitants` };
+  if (pop >= 50_000) return { year: 3000, month: 250, label: `${pop.toLocaleString("fr-FR")} habitants` };
+  if (pop >= 20_000) return { year: 1500, month: 125, label: `${pop.toLocaleString("fr-FR")} habitants` };
+  if (pop >= 10_000) return { year: 600, month: 50, label: `${pop.toLocaleString("fr-FR")} habitants` };
+  return { year: 300, month: 25, label: `${pop.toLocaleString("fr-FR")} habitants` };
+}
+
+function formatEuro(n: number) {
+  return n.toLocaleString("fr-FR");
+}
 
 const benefits = [
   {
@@ -31,6 +48,17 @@ const Partners = () => {
   const [form, setForm] = useState({ name: "", role: "", organization: "", email: "", phone: "", message: "" });
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [population, setPopulation] = useState<number>(8000);
+  const [communeQuery, setCommuneQuery] = useState("");
+
+  const pricing = useMemo(() => getPricing(population), [population]);
+
+  const scrollToContact = () => {
+    document.getElementById("contact")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (communeQuery.trim()) {
+      setForm((prev) => ({ ...prev, organization: prev.organization || communeQuery.trim() }));
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,6 +169,77 @@ const Partners = () => {
                 <p className="text-sm text-muted-foreground">{s.d}</p>
               </div>
             ))}
+          </div>
+        </section>
+
+        {/* Pricing estimator */}
+        <section className="max-w-3xl mx-auto">
+          <div className="text-center space-y-2 mb-8">
+            <span className="inline-block text-xs font-semibold uppercase tracking-wider text-primary bg-primary/10 px-3 py-1 rounded-full">
+              Estimation tarifaire
+            </span>
+            <h2 className="text-2xl md:text-3xl font-bold text-foreground">Combien pour ma commune ?</h2>
+            <p className="text-muted-foreground text-sm">Faites glisser le curseur selon le nombre d'habitants.</p>
+          </div>
+
+          <div className="rounded-3xl border border-border bg-card shadow-sm p-6 md:p-10 space-y-8">
+            <div className="text-center space-y-3">
+              <p className="text-sm text-muted-foreground">Votre commune peut rejoindre Microbalade pour</p>
+              <p className="text-4xl md:text-6xl font-extrabold tracking-tight text-foreground leading-tight">
+                {formatEuro(pricing.year)} € <span className="text-2xl md:text-3xl font-semibold text-muted-foreground">/ an</span>
+              </p>
+              {pricing.month !== null ? (
+                <p className="text-base md:text-lg text-primary font-medium">
+                  Soit seulement {pricing.month} € / mois
+                </p>
+              ) : (
+                <p className="text-base md:text-lg text-muted-foreground">
+                  Tarif sur-mesure pour les grandes métropoles
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <Slider
+                value={[population]}
+                onValueChange={(v) => setPopulation(v[0])}
+                min={1000}
+                max={SLIDER_MAX}
+                step={1000}
+                className="py-2"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground font-medium">
+                <span>1 000 hab.</span>
+                <span className="text-foreground text-sm font-semibold">
+                  {population >= SLIDER_MAX ? "1 million et plus" : `${formatEuro(population)} habitants`}
+                </span>
+                <span>1 M+</span>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <div className="relative">
+                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={communeQuery}
+                  onChange={(e) => setCommuneQuery(e.target.value)}
+                  placeholder="Rechercher ma commune"
+                  className="w-full bg-secondary rounded-xl pl-11 pr-4 py-3.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={scrollToContact}
+                className="w-full bg-primary text-primary-foreground font-semibold py-4 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 text-base"
+              >
+                Obtenir mon accès partenaire
+                <ArrowRight size={18} />
+              </button>
+              <p className="text-[11px] text-muted-foreground text-center">
+                Tarif annuel tout compris · Sans engagement de durée
+              </p>
+            </div>
           </div>
         </section>
 
