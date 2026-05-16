@@ -10,6 +10,8 @@ export interface BaladeStep {
 export interface BaladeResult {
   steps: BaladeStep[];
   google_maps_url: string;
+  walking_minutes?: number;
+  walking_distance_meters?: number;
 }
 
 interface ResultScreenProps {
@@ -19,6 +21,8 @@ interface ResultScreenProps {
 }
 
 const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
+  const displayedMinutes = result.walking_minutes ?? duration;
+
   const handleOpenGoogleMaps = () => {
     try {
       const url = new URL(result.google_maps_url);
@@ -73,7 +77,7 @@ const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
         >
           <h2 className="text-lg font-bold text-foreground mb-1">Votre Microbalade</h2>
           <p className="text-sm text-muted-foreground">
-            {result.steps.length} étapes · ~{duration} min à pied
+            {result.steps.length} étapes · ~{displayedMinutes} min à pied
           </p>
         </motion.div>
 
