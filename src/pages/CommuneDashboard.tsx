@@ -697,9 +697,22 @@ export default function CommuneDashboard() {
                       </span>
                     </p>
                   </div>
-                  <span className="text-xs font-semibold uppercase tracking-wider text-primary bg-primary/10 px-3 py-1 rounded-full">
-                    Actif
-                  </span>
+                  {(() => {
+                    const map: Record<string, { label: string; cls: string }> = {
+                      active: { label: "Actif", cls: "text-primary bg-primary/10" },
+                      trialing: { label: "Période d'essai", cls: "text-primary bg-primary/10" },
+                      past_due: { label: "Paiement en retard", cls: "text-amber-700 bg-amber-100" },
+                      unpaid: { label: "Impayé", cls: "text-destructive bg-destructive/10" },
+                      canceled: { label: "Annulé", cls: "text-destructive bg-destructive/10" },
+                      incomplete: { label: "À finaliser", cls: "text-amber-700 bg-amber-100" },
+                    };
+                    const s = map[status ?? "trialing"] ?? map.trialing;
+                    return (
+                      <span className={`text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full ${s.cls}`}>
+                        {s.label}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
 
