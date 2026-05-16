@@ -193,8 +193,13 @@ const createCandidateLoops = (originCoord: string, duration: number) => {
   // theoretical radius, because canals, dead ends and pedestrian geometry create large detours.
   const radiusFactors = [0.55, 0.7, 0.85, 0.95, 1.0, 1.05, 1.15, 1.25];
   const dynamicRadii = radiusFactors.map((f) => Math.max(30, Math.round(baseRadius * f)));
-  const compactRadii = [30, 40, 55, 70, 85, 100, 120, 150, 180];
-  const radii = Array.from(new Set([...compactRadii, ...dynamicRadii])).sort((a, b) => a - b);
+  // Lower bound on candidate radii. Without this, dense pedestrian networks in
+  // rural areas can produce 30 m "loops" whose 3 waypoints all snap to the same
+  // road segment — OSRM may still measure a long detour, but Google Maps will
+  // show a 1-minute trip. Floor scales with requested duration.
+  const minRadius = Math.max(60, Math.round(baseRadius * 0.45));
+  const compactRadii = [60, 80, 100, 130, 160, 200].filter((r) => r >= minRadius);
+  const radii = Array.from(new Set([...compactRadii, ...dynamicRadii.filter((r) => r >= minRadius)])).sort((a, b) => a - b);
 
   const angleTemplates = [
     [0, 120, 240],
