@@ -837,6 +837,20 @@ export default function CommuneDashboard() {
           )}
         </main>
       </div>
+
+      <Dialog open={checkoutOpen} onOpenChange={(o) => { if (!o) closeCheckout(); }}>
+        <DialogContent className="max-w-2xl p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6">
+            <DialogTitle>Paiement de votre abonnement</DialogTitle>
+            <DialogDescription>
+              {profile?.abonnement_label} – {profile?.abonnement_prix_annuel} € / an. Paiement sécurisé via Stripe.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-4 max-h-[75vh] overflow-y-auto">
+            {checkoutElement}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
