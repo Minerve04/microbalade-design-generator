@@ -1,4 +1,25 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+const logSearchStat = async (row: {
+  ville: string | null;
+  code_postal: string | null;
+  duree_minutes: number;
+  themes: string[];
+  monuments: string[];
+  origin_address: string | null;
+}) => {
+  try {
+    const url = Deno.env.get("SUPABASE_URL");
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!url || !key) return;
+    const client = createClient(url, key);
+    const { error } = await client.from("statistiques_recherches").insert(row);
+    if (error) console.error("stats insert error:", error.message);
+  } catch (e) {
+    console.error("stats insert exception:", e);
+  }
+};
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -374,8 +395,20 @@ serve(async (req) => {
       reverseGeocodeDetails(originResolved.coord),
     ]);
 
+    const steps = buildSteps(waypoints, aiDescriptions);
+
+    // Fire-and-forget logging of the successful search
+    logSearchStat({
+      ville: originDetails.city ?? null,
+      code_postal: originDetails.postcode ?? null,
+      duree_minutes: duration,
+      themes: interests as string[],
+      monuments: waypointLabels,
+      origin_address: originResolved.label ?? location,
+    });
+
     return jsonResponse({
-      steps: buildSteps(waypoints, aiDescriptions),
+      steps,
       google_maps_url: buildGoogleMapsUrl(
         toLatLng(originResolved.coord),
         waypoints.map((p) => toLatLng(p.coord))

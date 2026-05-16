@@ -44,6 +44,39 @@ export type Database = {
         }
         Relationships: []
       }
+      statistiques_recherches: {
+        Row: {
+          code_postal: string | null
+          created_at: string
+          duree_minutes: number | null
+          id: string
+          monuments: string[] | null
+          origin_address: string | null
+          themes: string[] | null
+          ville: string | null
+        }
+        Insert: {
+          code_postal?: string | null
+          created_at?: string
+          duree_minutes?: number | null
+          id?: string
+          monuments?: string[] | null
+          origin_address?: string | null
+          themes?: string[] | null
+          ville?: string | null
+        }
+        Update: {
+          code_postal?: string | null
+          created_at?: string
+          duree_minutes?: number | null
+          id?: string
+          monuments?: string[] | null
+          origin_address?: string | null
+          themes?: string[] | null
+          ville?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
