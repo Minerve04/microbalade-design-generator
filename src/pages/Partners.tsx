@@ -99,12 +99,20 @@ const Partners = () => {
             <ArrowLeft size={16} />
             <img src={logo} alt="Microbalade" className="h-7 w-auto" />
           </Link>
-          <a
-            href="#contact"
-            className="text-sm font-medium text-primary hover:underline"
-          >
-            Demander une démo
-          </a>
+          <div className="flex items-center gap-2 md:gap-3">
+            <Link
+              to="/partenaires/connexion"
+              className="text-sm font-medium text-foreground/80 hover:text-foreground px-3 py-2 rounded-lg hover:bg-muted transition-colors"
+            >
+              Connexion
+            </Link>
+            <Link
+              to="/partenaires/connexion"
+              className="text-sm font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+            >
+              Inscription
+            </Link>
+          </div>
         </div>
       </header>
 
