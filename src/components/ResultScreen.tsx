@@ -28,6 +28,7 @@ interface ResultScreenProps {
 interface PartnerCommune {
   nom: string;
   logo_url: string | null;
+  lien_action: string | null;
 }
 
 const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
@@ -44,7 +45,7 @@ const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
     (async () => {
       const { data, error } = await supabase
         .from("communes_partenaires")
-        .select("nom, logo_url")
+        .select("nom, logo_url, lien_action")
         .eq("code_postal", cp)
         .eq("active", true)
         .maybeSingle();
@@ -171,6 +172,31 @@ const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
           <Navigation size={18} />
           Ouvrir l'itinéraire dans Google Maps
         </motion.button>
+
+        {partner?.lien_action && (() => {
+          let safeHref: string | null = null;
+          try {
+            const u = new URL(partner.lien_action);
+            if (u.protocol === "http:" || u.protocol === "https:") safeHref = u.toString();
+          } catch {
+            /* invalid url */
+          }
+          if (!safeHref) return null;
+          return (
+            <motion.a
+              href={safeHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.6 }}
+              whileTap={{ scale: 0.97 }}
+              className="w-full flex items-center justify-center gap-2.5 bg-card border-2 border-primary text-primary font-semibold text-base py-4 rounded-2xl"
+            >
+              En savoir plus avec la Ville de {partner.nom}
+            </motion.a>
+          );
+        })()}
       </div>
     </div>
   );
