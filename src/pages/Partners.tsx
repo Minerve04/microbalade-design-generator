@@ -1,11 +1,14 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { motion } from "framer-motion";
-import { ArrowLeft, Landmark, BarChart3, Store, Send, Loader2, CheckCircle2, Search, ArrowRight } from "lucide-react";
+import { ArrowLeft, Landmark, BarChart3, Store, Send, Loader2, CheckCircle2, Search, ArrowRight, X } from "lucide-react";
 import { toast } from "sonner";
 import { Slider } from "@/components/ui/slider";
 import logo from "@/assets/logo.png";
+import { useAuth } from "@/hooks/useAuth";
+import { useStripeCheckout } from "@/hooks/useStripeCheckout";
+import { getCommunePriceForPopulation } from "@/lib/stripe";
 
 const SLIDER_MAX = 1_000_001; // sentinel for "1 million et plus"
 
@@ -50,8 +53,25 @@ const Partners = () => {
   const [sent, setSent] = useState(false);
   const [population, setPopulation] = useState<number>(8000);
   const [communeQuery, setCommuneQuery] = useState("");
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { openCheckout, closeCheckout, isOpen, checkoutElement } = useStripeCheckout();
 
   const pricing = useMemo(() => getPricing(population), [population]);
+
+  const handleSubscribe = () => {
+    const { priceId } = getCommunePriceForPopulation(population);
+    if (!user) {
+      toast.info("Connectez-vous pour finaliser l'abonnement");
+      sessionStorage.setItem("pendingCheckoutPriceId", priceId);
+      navigate(`/partenaires/connexion?intent=checkout&priceId=${encodeURIComponent(priceId)}`);
+      return;
+    }
+    openCheckout({
+      priceId,
+      returnUrl: `${window.location.origin}/partenaires/paiement-confirme?session_id={CHECKOUT_SESSION_ID}`,
+    });
+  };
 
   const scrollToContact = () => {
     document.getElementById("contact")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -238,14 +258,21 @@ const Partners = () => {
               </div>
               <button
                 type="button"
-                onClick={scrollToContact}
+                onClick={handleSubscribe}
                 className="w-full bg-primary text-primary-foreground font-semibold py-4 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 text-base"
               >
-                Obtenir mon accès partenaire
+                {pricing.year >= 10000 ? "Demander un devis" : "S'abonner — " + formatEuro(pricing.year) + " € / an"}
                 <ArrowRight size={18} />
               </button>
+              <button
+                type="button"
+                onClick={scrollToContact}
+                className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                ou demander une démonstration sans engagement
+              </button>
               <p className="text-[11px] text-muted-foreground text-center">
-                Tarif annuel tout compris · Sans engagement de durée
+                Paiement par carte (immédiat) ou virement SEPA · Sans engagement de durée
               </p>
             </div>
           </div>
@@ -351,6 +378,27 @@ const Partners = () => {
           )}
         </section>
       </main>
+
+      {isOpen && (
+        <div className="fixed inset-0 z-50 bg-background/90 backdrop-blur flex items-start justify-center overflow-y-auto p-4">
+          <div className="relative w-full max-w-2xl bg-card border border-border rounded-3xl shadow-2xl mt-8 mb-8">
+            <button
+              onClick={closeCheckout}
+              className="absolute top-4 right-4 z-10 w-9 h-9 rounded-full bg-muted hover:bg-muted/70 flex items-center justify-center transition-colors"
+              aria-label="Fermer"
+            >
+              <X size={18} />
+            </button>
+            <div className="px-5 pt-12 pb-2 border-b border-border">
+              <h2 className="text-lg font-bold text-foreground">Finaliser l'abonnement</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Paiement sécurisé par Stripe · Carte ou virement SEPA accepté
+              </p>
+            </div>
+            <div className="p-2">{checkoutElement}</div>
+          </div>
+        </div>
+      )}
 
       <footer className="border-t border-border py-6 text-center text-xs text-muted-foreground">
         © {new Date().getFullYear()} Microbalade ·{" "}
