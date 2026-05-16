@@ -377,6 +377,7 @@ export default function CommuneDashboard() {
               </div>
             </div>
           )}
+          {tab === "overview" && (
             <section className="space-y-6">
               <div className="flex items-start justify-between flex-wrap gap-4">
                 <div>
