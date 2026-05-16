@@ -48,6 +48,17 @@ const Partners = () => {
   const [form, setForm] = useState({ name: "", role: "", organization: "", email: "", phone: "", message: "" });
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [population, setPopulation] = useState<number>(8000);
+  const [communeQuery, setCommuneQuery] = useState("");
+
+  const pricing = useMemo(() => getPricing(population), [population]);
+
+  const scrollToContact = () => {
+    document.getElementById("contact")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (communeQuery.trim()) {
+      setForm((prev) => ({ ...prev, organization: prev.organization || communeQuery.trim() }));
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
