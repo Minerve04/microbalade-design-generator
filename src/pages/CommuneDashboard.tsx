@@ -406,20 +406,47 @@ export default function CommuneDashboard() {
             </div>
           )}
           {neverPaid && (
-            <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3 bg-primary/10 border border-primary/30 rounded-2xl p-4">
-              <AlertTriangle className="text-primary shrink-0" size={20} />
+            <div className="mb-6 flex flex-col gap-3 bg-primary/10 border border-primary/30 rounded-2xl p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="text-primary shrink-0 mt-0.5" size={20} />
+                <div className="text-sm flex-1">
+                  <div className="font-semibold text-foreground">Abonnement inactif — paiement requis</div>
+                  <p className="text-muted-foreground mt-1">
+                    Votre compte est créé mais aucun paiement n'a été enregistré. Choisissez votre mode de règlement pour activer votre dashboard et l'affichage de votre logo sur Microbalade.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+                <button
+                  onClick={() => setChorusOpen(true)}
+                  className="inline-flex items-center justify-center gap-1.5 bg-secondary text-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:bg-secondary/80 transition border border-border"
+                >
+                  <FileTextIcon size={16} /> Bon de commande / Chorus Pro
+                </button>
+                <button
+                  onClick={handlePay}
+                  className="inline-flex items-center justify-center bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:opacity-90 transition"
+                >
+                  Payer par carte
+                </button>
+              </div>
+            </div>
+          )}
+          {isPendingMandat && (
+            <div className="mb-6 flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-2xl p-4">
+              <FileTextIcon className="text-amber-700 shrink-0 mt-0.5" size={20} />
               <div className="text-sm flex-1">
-                <div className="font-semibold text-foreground">Abonnement inactif — paiement requis</div>
+                <div className="font-semibold text-foreground">Règlement par Chorus Pro en attente</div>
                 <p className="text-muted-foreground mt-1">
-                  Votre compte est créé mais aucun paiement n'a été enregistré. Choisissez votre formule pour activer votre dashboard et l'affichage de votre logo sur Microbalade.
+                  Votre compte est <strong>activé</strong>. La facture a été émise et doit être réglée
+                  {profile?.chorus_due_date ? (
+                    <> avant le <strong>{new Date(profile.chorus_due_date).toLocaleDateString("fr-FR")}</strong></>
+                  ) : (
+                    <> sous 30 jours</>
+                  )}
+                  . Une fois le virement reçu, votre statut passera à « Actif ».
                 </p>
               </div>
-              <button
-                onClick={handlePay}
-                className="shrink-0 inline-flex items-center justify-center bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:opacity-90 transition"
-              >
-                Payer mon abonnement
-              </button>
             </div>
           )}
           {tab === "overview" && (
