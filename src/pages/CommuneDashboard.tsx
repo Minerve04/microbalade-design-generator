@@ -349,50 +349,144 @@ export default function CommuneDashboard() {
         <main className="flex-1 p-5 md:p-8 max-w-6xl w-full mx-auto">
           {tab === "overview" && (
             <section className="space-y-6">
-              <div>
-                <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">
-                  Bonjour, {profile?.nom_collectivite}
-                </h1>
-                <p className="text-sm text-muted-foreground">Voici l'activité Microbalade sur votre territoire.</p>
+              <div className="flex items-start justify-between flex-wrap gap-4">
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">
+                    Bonjour, {profile?.nom_collectivite}
+                  </h1>
+                  <p className="text-sm text-muted-foreground">Activité Microbalade sur votre territoire.</p>
+                </div>
+                <div className="flex items-end gap-2 bg-card border border-border rounded-xl p-2">
+                  <div className="space-y-0.5">
+                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1">Du</label>
+                    <input
+                      type="date"
+                      value={from}
+                      onChange={(e) => setFrom(e.target.value)}
+                      max={to}
+                      className="bg-transparent text-sm text-foreground px-2 py-1 focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-0.5">
+                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1">Au</label>
+                    <input
+                      type="date"
+                      value={to}
+                      onChange={(e) => setTo(e.target.value)}
+                      min={from}
+                      className="bg-transparent text-sm text-foreground px-2 py-1 focus:outline-none"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <StatCard icon={Footprints} label="Balades générées ce mois-ci" value={totalThisMonth.toString()} sub="+161 % vs avril" />
-                <StatCard icon={Clock} label="Temps moyen passé" value="32 min" sub="Sur l'app" />
-                <StatCard icon={TrendingUp} label="Croissance trimestrielle" value="+275 %" sub="Mars → Mai" />
+                <StatCard icon={Footprints} label="Balades générées" value={totalBalades.toString()} sub="Sur la période sélectionnée" />
+                <StatCard icon={Clock} label="Durée moyenne demandée" value={`${avgDuration} min`} sub="Par balade" />
+                <StatCard
+                  icon={TrendingUp}
+                  label="Monuments uniques mis en avant"
+                  value={topMonuments.length.toString()}
+                  sub="Affichés au moins une fois"
+                />
               </div>
 
               <div className="bg-card border border-border rounded-2xl p-5 md:p-6">
                 <h2 className="font-semibold text-foreground mb-4">Évolution des balades générées</h2>
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={monthlyData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="balades" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
-                          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                      <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                      <Tooltip
-                        contentStyle={{
-                          background: "hsl(var(--card))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: 12,
-                          fontSize: 12,
-                        }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="balades"
-                        stroke="hsl(var(--primary))"
-                        strokeWidth={2.5}
-                        fill="url(#balades)"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                {monthlyData.length === 0 ? (
+                  <EmptyChart />
+                ) : (
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={monthlyData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="balades" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
+                            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} allowDecimals={false} />
+                        <Tooltip
+                          contentStyle={{
+                            background: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: 12,
+                            fontSize: 12,
+                          }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="balades"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={2.5}
+                          fill="url(#balades)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid lg:grid-cols-2 gap-5">
+                <div className="bg-card border border-border rounded-2xl p-5 md:p-6">
+                  <h2 className="font-semibold text-foreground mb-4">Monuments & rues les plus visités</h2>
+                  {topMonuments.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-6 text-center">
+                      Aucune donnée sur cette période.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {topMonuments.map((m, i) => {
+                        const max = topMonuments[0].count;
+                        const pct = (m.count / max) * 100;
+                        return (
+                          <li key={m.name} className="space-y-1">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-foreground truncate pr-3">
+                                <span className="text-muted-foreground font-mono text-xs mr-2">#{i + 1}</span>
+                                {m.name}
+                              </span>
+                              <span className="text-foreground font-semibold tabular-nums">{m.count}</span>
+                            </div>
+                            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-primary rounded-full transition-all"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="bg-card border border-border rounded-2xl p-5 md:p-6">
+                  <h2 className="font-semibold text-foreground mb-4">Durées de balade privilégiées</h2>
+                  {durationData.length === 0 ? (
+                    <EmptyChart />
+                  ) : (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={durationData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                          <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} allowDecimals={false} />
+                          <Tooltip
+                            contentStyle={{
+                              background: "hsl(var(--card))",
+                              border: "1px solid hsl(var(--border))",
+                              borderRadius: 12,
+                              fontSize: 12,
+                            }}
+                          />
+                          <Bar dataKey="count" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
                 </div>
               </div>
             </section>
