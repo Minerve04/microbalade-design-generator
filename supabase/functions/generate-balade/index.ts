@@ -6,26 +6,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SYSTEM_PROMPT = `Tu es un guide local expert, concis et passionnant, spécialisé dans les lieux méconnus et insolites.
-
-L'utilisateur te donnera un point de départ, un temps disponible et exactement 3 lieux déjà choisis dans le bon ordre.
-Ta mission : écrire pour chacun de ces 3 lieux un titre accrocheur et exactement deux phrases d'anecdote historique, insolite ou culturelle.
-
-Contraintes absolues :
-- Ne change jamais l'ordre des lieux.
-- Ne change jamais le nom des lieux.
-- N'ajoute aucune introduction ni conclusion.
-- Réponds uniquement en JSON valide.
-
-Format attendu :
-{
-  "steps": [
-    { "title": "...", "description": "...", "place": "Nom exact du lieu 1" },
-    { "title": "...", "description": "...", "place": "Nom exact du lieu 2" },
-    { "title": "...", "description": "...", "place": "Nom exact du lieu 3" }
-  ]
-}`;
-
 type BaladeStep = { title: string; description: string; place?: string };
 type DiscoveredPlace = {
   name: string;
@@ -53,8 +33,6 @@ const jsonResponse = (body: unknown, status = 200) =>
   });
 
 const businessError = (message: string) => jsonResponse({ error: message }, 200);
-
-const normalizePlace = (value: string) => value.trim().toLowerCase();
 
 const permute = <T>(items: T[]): T[][] => {
   if (items.length <= 1) return [items];
@@ -413,8 +391,6 @@ serve(async (req) => {
       return businessError("Choisissez au moins un centre d'intérêt.");
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-
     const interestLabels: Record<string, string> = {
       architecture: "Architecture",
       nature: "Nature",
@@ -462,13 +438,7 @@ serve(async (req) => {
       );
     }
 
-    const steps = await generateNarrativeSteps(
-      selectedRoute.orderedPoints,
-      location,
-      duration,
-      interestText,
-      LOVABLE_API_KEY
-    );
+    const steps = buildFallbackSteps(selectedRoute.orderedPoints);
 
     const googleMapsUrl = buildGoogleMapsUrl(
       originLatLng,
