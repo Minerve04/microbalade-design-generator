@@ -1,10 +1,26 @@
 import { Link } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
 import { ArrowLeft } from "lucide-react";
 import logo from "@/assets/logo.png";
 
 const PrivacyPolicy = () => {
   return (
     <div className="min-h-screen bg-background px-5 py-10">
+      <Helmet>
+        <title>Politique de confidentialité — Microbalade</title>
+        <meta
+          name="description"
+          content="Comment Microbalade traite vos données : géolocalisation, préférences de balade, services tiers (OpenStreetMap, Gemini, Google Maps) et droits RGPD."
+        />
+        <link rel="canonical" href="https://microbalade.fr/confidentialite" />
+        <meta property="og:title" content="Politique de confidentialité — Microbalade" />
+        <meta
+          property="og:description"
+          content="Données collectées, services tiers utilisés et vos droits RGPD sur Microbalade."
+        />
+        <meta property="og:url" content="https://microbalade.fr/confidentialite" />
+        <meta property="og:type" content="article" />
+      </Helmet>
       <div className="max-w-2xl mx-auto">
         <Link
           to="/"
@@ -15,7 +31,7 @@ const PrivacyPolicy = () => {
         </Link>
 
         <div className="flex items-center gap-3 mb-8">
-          <img src={logo} alt="Microbalade" className="h-10 w-auto" />
+          <img src={logo} alt="Logo Microbalade" className="h-10 w-auto" />
           <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
             Politique de confidentialité
           </h1>

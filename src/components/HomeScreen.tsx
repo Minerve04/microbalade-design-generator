@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
 import logo from "@/assets/logo.png";
 import { MapPin, Loader2, LocateFixed } from "lucide-react";
 import { toast } from "sonner";
@@ -115,6 +116,15 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center px-5 py-12 pb-8">
+      <Helmet>
+        <title>Microbalade — Transformez votre attente en découverte</title>
+        <meta name="description" content="Générez des micro-balades personnalisées autour de vous. Architecture, nature, street-art, histoire insolite." />
+        <link rel="canonical" href="https://microbalade.fr/" />
+        <meta property="og:title" content="Microbalade — Transformez votre attente en découverte" />
+        <meta property="og:description" content="Générez des micro-balades personnalisées autour de vous. Architecture, nature, street-art, histoire insolite." />
+        <meta property="og:url" content="https://microbalade.fr/" />
+        <meta property="og:type" content="website" />
+      </Helmet>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -122,9 +132,10 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
         className="w-full max-w-md flex flex-col gap-8"
       >
         <div className="text-center space-y-3 flex flex-col items-center">
-          <img src={logo} alt="Microbalade" className="h-16 w-auto" />
+          <img src={logo} alt="Logo Microbalade" className="h-16 w-auto" />
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
             Micro<span className="text-primary">balade</span>
+            <span className="sr-only"> — Transformez votre attente en découverte</span>
           </h1>
           <p className="text-muted-foreground text-base">
             Transformez votre attente en découverte
@@ -132,9 +143,9 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
         </div>
 
         <div className="glass-card rounded-2xl p-4">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
             Localisation
-          </label>
+          </h2>
           <div className="relative flex gap-2">
             <div className="relative flex-1">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-primary z-10" size={20} />
@@ -173,6 +184,7 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
               type="button"
               onClick={handleGeolocate}
               disabled={geoLoading}
+              aria-label="Me localiser"
               className="flex items-center justify-center w-12 bg-secondary rounded-xl text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
               title="Me localiser"
             >
@@ -183,9 +195,9 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
 
         <div className="glass-card rounded-2xl p-4">
           <div className="flex items-center justify-between mb-3">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Temps disponible
-            </label>
+            </h2>
             <span className="text-sm font-bold text-primary">{formatDuration(duration)}</span>
           </div>
           <input
@@ -204,9 +216,9 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
         </div>
 
         <div className="space-y-3">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Envie du moment
-          </label>
+          </h2>
           <div className="grid grid-cols-2 gap-3">
             {interests.map((item) => {
               const active = selected.includes(item.id);
