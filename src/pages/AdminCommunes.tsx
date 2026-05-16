@@ -252,9 +252,10 @@ const AdminCommunes = () => {
     <div className="min-h-screen bg-background p-4 max-w-5xl mx-auto">
       <h1 className="text-2xl font-semibold mb-6">Administration</h1>
 
-      <Tabs defaultValue="communes" onValueChange={(v) => v === "stats" && loadStats(filterCommune)}>
+      <Tabs defaultValue="communes" onValueChange={(v) => { if (v === "stats") loadStats(filterCommune); if (v === "chorus") loadChorus(); }}>
         <TabsList>
           <TabsTrigger value="communes">Communes partenaires</TabsTrigger>
+          <TabsTrigger value="chorus">Chorus Pro</TabsTrigger>
           <TabsTrigger value="stats">Statistiques</TabsTrigger>
         </TabsList>
 
