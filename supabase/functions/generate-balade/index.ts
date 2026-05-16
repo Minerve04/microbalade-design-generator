@@ -88,6 +88,26 @@ const reverseGeocode = async (coord: string, fallbackLabel: string) => {
   }
 };
 
+const reverseGeocodeDetails = async (coord: string): Promise<{ postcode?: string; city?: string }> => {
+  try {
+    const { lat, lon } = parseCoord(coord);
+    const response = await fetchWithTimeout(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=fr&addressdetails=1`,
+      { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } },
+      REVERSE_GEOCODE_TIMEOUT_MS
+    );
+    if (!response.ok) return {};
+    const data = await response.json();
+    const address = data?.address || {};
+    return {
+      postcode: address.postcode || undefined,
+      city: address.city || address.town || address.village || address.municipality || undefined,
+    };
+  } catch {
+    return {};
+  }
+};
+
 // Measure real walking route via OSRM (foot profile). We trust the DISTANCE, not the
 // duration: the OSRM demo's foot speed is optimistic vs Google Maps. We recompute
 // the time from the distance with a Google-equivalent pace so the promised duration
@@ -344,12 +364,15 @@ serve(async (req) => {
       label: waypointLabels[index],
     }));
 
-    const aiDescriptions = await generateAiDescriptions(
-      originResolved.label,
-      waypointLabels,
-      interests as string[],
-      selected.route.durationMinutes
-    );
+    const [aiDescriptions, originDetails] = await Promise.all([
+      generateAiDescriptions(
+        originResolved.label,
+        waypointLabels,
+        interests as string[],
+        selected.route.durationMinutes
+      ),
+      reverseGeocodeDetails(originResolved.coord),
+    ]);
 
     return jsonResponse({
       steps: buildSteps(waypoints, aiDescriptions),
@@ -359,6 +382,8 @@ serve(async (req) => {
       ),
       walking_minutes: selected.route.durationMinutes,
       walking_distance_meters: selected.route.distanceMeters,
+      origin_postcode: originDetails.postcode ?? null,
+      origin_city: originDetails.city ?? null,
     });
   } catch (e) {
     console.error("generate-balade error:", e);
