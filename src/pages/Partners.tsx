@@ -259,7 +259,7 @@ const Partners = () => {
                 <ArrowRight size={18} />
               </button>
               <p className="text-[11px] text-muted-foreground text-center">
-                Paiement par carte (immédiat) ou virement SEPA · Sans engagement de durée
+                Paiement sécurisé par carte · Sans engagement de durée
               </p>
             </div>
           </div>
@@ -291,10 +291,10 @@ const Partners = () => {
             >
               <X size={18} />
             </button>
-            <div className="px-5 pt-12 pb-2 border-b border-border">
+              <div className="px-5 pt-12 pb-2 border-b border-border">
               <h2 className="text-lg font-bold text-foreground">Finaliser l'abonnement</h2>
               <p className="text-xs text-muted-foreground mt-1">
-                Paiement sécurisé par Stripe · Carte ou virement SEPA accepté
+                  Paiement sécurisé par Stripe · Carte acceptée
               </p>
             </div>
             <div className="p-2">{checkoutElement}</div>
