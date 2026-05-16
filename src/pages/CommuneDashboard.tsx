@@ -365,7 +365,18 @@ export default function CommuneDashboard() {
         </header>
 
         <main className="flex-1 p-5 md:p-8 max-w-6xl w-full mx-auto">
-          {tab === "overview" && (
+          {locked && (
+            <div className="mb-6 flex items-start gap-3 bg-destructive/10 border border-destructive/30 rounded-2xl p-4">
+              <AlertTriangle className="text-destructive shrink-0 mt-0.5" size={20} />
+              <div className="text-sm">
+                <div className="font-semibold text-foreground">Abonnement suspendu</div>
+                <p className="text-muted-foreground mt-1">
+                  Votre dashboard et l'affichage de votre logo sur Microbalade sont en pause.
+                  Régularisez votre paiement via le portail sécurisé ci-dessous pour réactiver instantanément vos services.
+                </p>
+              </div>
+            </div>
+          )}
             <section className="space-y-6">
               <div className="flex items-start justify-between flex-wrap gap-4">
                 <div>
