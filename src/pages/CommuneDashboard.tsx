@@ -382,13 +382,13 @@ export default function CommuneDashboard() {
               </div>
             </div>
           )}
-          {!loadingSub && status === "trialing" && (
+          {neverPaid && (
             <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3 bg-primary/10 border border-primary/30 rounded-2xl p-4">
               <AlertTriangle className="text-primary shrink-0" size={20} />
               <div className="text-sm flex-1">
-                <div className="font-semibold text-foreground">Activez votre abonnement</div>
+                <div className="font-semibold text-foreground">Abonnement inactif — paiement requis</div>
                 <p className="text-muted-foreground mt-1">
-                  Votre compte est créé mais l'abonnement n'est pas encore réglé. Choisissez votre formule et payez en quelques clics pour activer définitivement votre dashboard et l'affichage de votre logo.
+                  Votre compte est créé mais aucun paiement n'a été enregistré. Choisissez votre formule pour activer votre dashboard et l'affichage de votre logo sur Microbalade.
                 </p>
               </div>
               <Link
