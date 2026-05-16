@@ -13,6 +13,7 @@ interface Commune {
   nom: string;
   code_postal: string;
   logo_url: string | null;
+  lien_action: string | null;
   active: boolean;
 }
 
@@ -23,7 +24,7 @@ const AdminCommunes = () => {
   const [authed, setAuthed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [communes, setCommunes] = useState<Commune[]>([]);
-  const [form, setForm] = useState({ nom: "", code_postal: "", logo_url: "", active: true });
+  const [form, setForm] = useState({ nom: "", code_postal: "", logo_url: "", lien_action: "", active: true });
 
   const call = async (action: string, payload?: any) => {
     const { data, error } = await supabase.functions.invoke("admin-communes", {
@@ -61,7 +62,7 @@ const AdminCommunes = () => {
     }
     try {
       await call("create", form);
-      setForm({ nom: "", code_postal: "", logo_url: "", active: true });
+      setForm({ nom: "", code_postal: "", logo_url: "", lien_action: "", active: true });
       toast.success("Commune ajoutée");
       load();
     } catch (e: any) {
@@ -141,6 +142,14 @@ const AdminCommunes = () => {
               placeholder="https://..."
             />
           </div>
+          <div className="sm:col-span-2">
+            <Label>Lien d'action (bouton sous la carte)</Label>
+            <Input
+              value={form.lien_action}
+              onChange={(e) => setForm({ ...form, lien_action: e.target.value })}
+              placeholder="https://..."
+            />
+          </div>
           <div className="flex items-center gap-2">
             <Switch
               checked={form.active}
@@ -177,6 +186,14 @@ const AdminCommunes = () => {
                 <Input
                   value={c.logo_url ?? ""}
                   onChange={(e) => updateLocal(c.id, { logo_url: e.target.value })}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Label>Lien d'action</Label>
+                <Input
+                  value={c.lien_action ?? ""}
+                  onChange={(e) => updateLocal(c.id, { lien_action: e.target.value })}
+                  placeholder="https://..."
                 />
               </div>
             </div>

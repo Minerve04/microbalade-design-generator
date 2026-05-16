@@ -20,6 +20,7 @@ export type Database = {
           code_postal: string
           created_at: string
           id: string
+          lien_action: string | null
           logo_url: string | null
           nom: string
           updated_at: string
@@ -29,6 +30,7 @@ export type Database = {
           code_postal: string
           created_at?: string
           id?: string
+          lien_action?: string | null
           logo_url?: string | null
           nom: string
           updated_at?: string
@@ -38,6 +40,7 @@ export type Database = {
           code_postal?: string
           created_at?: string
           id?: string
+          lien_action?: string | null
           logo_url?: string | null
           nom?: string
           updated_at?: string
