@@ -80,7 +80,15 @@ function toInputDate(d: Date) {
 export default function CommuneDashboard() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { isActive, status, loading: loadingSub } = useCommuneSubscription();
   const [tab, setTab] = useState<TabKey>("overview");
+  const locked = !loadingSub && !isActive;
+
+  // Force user onto billing tab if subscription is not active
+  useEffect(() => {
+    if (locked && tab !== "profile") setTab("profile");
+  }, [locked, tab]);
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profile, setProfile] = useState<CommuneProfile | null>(null);
   const [searches, setSearches] = useState<SearchRow[]>([]);
