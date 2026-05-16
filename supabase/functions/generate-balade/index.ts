@@ -34,6 +34,8 @@ const jsonResponse = (body: unknown, status = 200) =>
 
 const businessError = (message: string) => jsonResponse({ error: message }, 200);
 
+const normalizePlace = (value: string) => value.trim().toLowerCase();
+
 const permute = <T>(items: T[]): T[][] => {
   if (items.length <= 1) return [items];
 
@@ -397,10 +399,6 @@ serve(async (req) => {
       streetart: "Street-art",
       history: "Histoire insolite",
     };
-
-    const interestText = (interests as string[])
-      .map((i: string) => interestLabels[i] || i)
-      .join(", ");
 
     const routeContext = location.includes(",")
       ? location.split(",").slice(-3).join(",").trim()
