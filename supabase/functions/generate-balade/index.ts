@@ -32,6 +32,17 @@ type BaladeStep = { title: string; description: string; place?: string };
 
 const MAX_GENERATION_ATTEMPTS = 4;
 
+const WALKING_SPEED_METERS_PER_MINUTE = 75;
+
+const permute = <T>(items: T[]): T[][] => {
+  if (items.length <= 1) return [items];
+
+  return items.flatMap((item, index) => {
+    const remaining = [...items.slice(0, index), ...items.slice(index + 1)];
+    return permute(remaining).map((tail) => [item, ...tail]);
+  });
+};
+
 const geocode = async (q: string, context?: string): Promise<{ coord: string; label: string } | null> => {
   const candidates = [q, context ? `${q}, ${context}` : null].filter(Boolean) as string[];
 
@@ -125,16 +136,23 @@ serve(async (req) => {
       );
     }
 
+    const maxLoopDistanceMeters = Math.round(duration * WALKING_SPEED_METERS_PER_MINUTE);
+    const maxPointRadiusMeters = Math.max(200, Math.round(maxLoopDistanceMeters / 6));
+    const originLatLng = originResolved.coord.split(",").reverse().join(",");
+
     let finalSteps: BaladeStep[] | null = null;
     let finalGoogleMapsUrl: string | null = null;
+    let lastMeasuredDuration: number | null = null;
 
     for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt++) {
       const userPrompt = [
         `Position de départ : ${location}`,
+        `Coordonnées du départ : ${originLatLng}`,
         `Temps disponible : ${duration} minutes`,
         `Centres d'intérêt : ${interestText}`,
+        `Contrainte géographique stricte : chaque point proposé doit rester à environ ${maxPointRadiusMeters} mètres maximum du point de départ pour garantir une vraie boucle piétonne.` ,
         attempt > 0
-          ? `IMPORTANT : ta précédente proposition dépassait le temps demandé à pied. Réduis fortement le rayon pour garantir une boucle totale de ${duration} minutes maximum à pied.`
+          ? `IMPORTANT : ta précédente proposition mesurée faisait ${lastMeasuredDuration ?? "trop"} minutes à pied. Réduis fortement le rayon et propose des lieux nettement plus proches pour garantir une boucle totale de ${duration} minutes maximum à pied.`
           : null,
       ]
         .filter(Boolean)
@@ -201,19 +219,42 @@ serve(async (req) => {
         continue;
       }
 
-      const waypointPoints = resolvedWaypoints.filter(Boolean) as Array<{ coord: string; label: string }>;
+      const waypointCandidates = steps.map((step, index) => ({
+        step,
+        point: resolvedWaypoints[index] as { coord: string; label: string },
+      }));
 
-      const walkingRoute = await getWalkingRoute([
-        originResolved.coord,
-        ...waypointPoints.map((point) => point.coord),
-        originResolved.coord,
-      ]);
+      let bestRoute:
+        | {
+            orderedSteps: BaladeStep[];
+            orderedPoints: Array<{ coord: string; label: string }>;
+            durationMinutes: number;
+          }
+        | null = null;
 
-      if (walkingRoute.durationMinutes <= duration) {
-        finalSteps = steps;
+      for (const orderedWaypoints of permute(waypointCandidates)) {
+        const walkingRoute = await getWalkingRoute([
+          originResolved.coord,
+          ...orderedWaypoints.map((entry) => entry.point.coord),
+          originResolved.coord,
+        ]);
+
+        if (!bestRoute || walkingRoute.durationMinutes < bestRoute.durationMinutes) {
+          bestRoute = {
+            orderedSteps: orderedWaypoints.map((entry) => entry.step),
+            orderedPoints: orderedWaypoints.map((entry) => entry.point),
+            durationMinutes: walkingRoute.durationMinutes,
+          };
+        }
+      }
+
+      lastMeasuredDuration = bestRoute?.durationMinutes ?? lastMeasuredDuration;
+
+      if (bestRoute && bestRoute.durationMinutes <= duration) {
+        finalSteps = bestRoute.orderedSteps;
         finalGoogleMapsUrl = buildGoogleMapsUrl(
-          originResolved.coord.split(",").reverse().join(","),
-          waypointPoints.map((point) => point.coord.split(",").reverse().join(","))
+          originLatLng,
+          bestRoute.orderedPoints.map((point) => point.coord.split(",").reverse().join(","))
         );
         break;
       }
