@@ -7,6 +7,7 @@ import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import PrivacyPolicy from "./pages/PrivacyPolicy.tsx";
 import LegalNotice from "./pages/LegalNotice.tsx";
+import Partners from "./pages/Partners.tsx";
 import AdminCommunes from "./pages/AdminCommunes.tsx";
 
 const queryClient = new QueryClient();
