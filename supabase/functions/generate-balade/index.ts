@@ -357,10 +357,21 @@ serve(async (req) => {
     let bestWithinSafe: { coords: string[]; route: RouteMeasurement } | null = null;
     let bestWithinHard: { coords: string[]; route: RouteMeasurement } | null = null;
 
-    for (const loop of loops) {
-      try {
-        const route = await getWalkingRoute([originResolved.coord, ...loop, originResolved.coord]);
-
+    // Evaluate candidates in parallel chunks (faster) with early exit once we have
+    // a result close to the safe budget.
+    const CHUNK = 6;
+    for (let i = 0; i < loops.length; i += CHUNK) {
+      const chunk = loops.slice(i, i + CHUNK);
+      const results = await Promise.allSettled(
+        chunk.map((loop) =>
+          getWalkingRoute([originResolved.coord, ...loop, originResolved.coord]).then(
+            (route) => ({ loop, route })
+          )
+        )
+      );
+      for (const r of results) {
+        if (r.status !== "fulfilled") continue;
+        const { loop, route } = r.value;
         if (route.durationMinutes <= safeLimit) {
           if (!bestWithinSafe || route.durationMinutes > bestWithinSafe.route.durationMinutes) {
             bestWithinSafe = { coords: loop, route };
@@ -371,9 +382,9 @@ serve(async (req) => {
             bestWithinHard = { coords: loop, route };
           }
         }
-      } catch {
-        continue;
       }
+      // Early exit when we have a result already filling at least 80% of the safe budget.
+      if (bestWithinSafe && bestWithinSafe.route.durationMinutes >= safeLimit * 0.8) break;
     }
 
     const selected = bestWithinSafe || bestWithinHard;
