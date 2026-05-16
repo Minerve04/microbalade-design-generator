@@ -1,11 +1,14 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { motion } from "framer-motion";
-import { ArrowLeft, Landmark, BarChart3, Store, Send, Loader2, CheckCircle2, Search, ArrowRight } from "lucide-react";
+import { ArrowLeft, Landmark, BarChart3, Store, Send, Loader2, CheckCircle2, Search, ArrowRight, X } from "lucide-react";
 import { toast } from "sonner";
 import { Slider } from "@/components/ui/slider";
 import logo from "@/assets/logo.png";
+import { useAuth } from "@/hooks/useAuth";
+import { useStripeCheckout } from "@/hooks/useStripeCheckout";
+import { getCommunePriceForPopulation } from "@/lib/stripe";
 
 const SLIDER_MAX = 1_000_001; // sentinel for "1 million et plus"
 
@@ -50,8 +53,25 @@ const Partners = () => {
   const [sent, setSent] = useState(false);
   const [population, setPopulation] = useState<number>(8000);
   const [communeQuery, setCommuneQuery] = useState("");
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { openCheckout, closeCheckout, isOpen, checkoutElement } = useStripeCheckout();
 
   const pricing = useMemo(() => getPricing(population), [population]);
+
+  const handleSubscribe = () => {
+    const { priceId } = getCommunePriceForPopulation(population);
+    if (!user) {
+      toast.info("Connectez-vous pour finaliser l'abonnement");
+      sessionStorage.setItem("pendingCheckoutPriceId", priceId);
+      navigate(`/partenaires/connexion?intent=checkout&priceId=${encodeURIComponent(priceId)}`);
+      return;
+    }
+    openCheckout({
+      priceId,
+      returnUrl: `${window.location.origin}/partenaires/paiement-confirme?session_id={CHECKOUT_SESSION_ID}`,
+    });
+  };
 
   const scrollToContact = () => {
     document.getElementById("contact")?.scrollIntoView({ behavior: "smooth", block: "start" });
