@@ -31,6 +31,7 @@ type BaladeStep = { title: string; description: string; place?: string };
 type Waypoint = { coord: string; label: string };
 type RouteGeometryPoint = [number, number];
 type RouteMeasurement = { durationMinutes: number; distanceMeters: number; overlapRatio: number };
+type CandidateLoop = { coords: string[]; route: RouteMeasurement; loopAreaSqMeters: number };
 
 // Google Maps walking pace ≈ 5 km/h ≈ 83 m/min. We align on Google's pace so that
 // what we promise matches what the user sees in Google Maps.
@@ -268,6 +269,19 @@ const getSafeDurationLimit = (duration: number) => {
   return Math.max(10, duration - buffer);
 };
 
+const getBaseLoopRadiusMeters = (duration: number) => {
+  const safeLimit = getSafeDurationLimit(duration);
+  const targetWalkingMeters = safeLimit * EFFECTIVE_WALKING_SPEED_M_PER_MIN;
+  return Math.max(60, Math.min(500, Math.round(targetWalkingMeters / 7)));
+};
+
+const getMinLoopAreaSqMeters = (duration: number) => {
+  const baseRadius = getBaseLoopRadiusMeters(duration);
+  return Math.max(8000, Math.round(baseRadius * baseRadius * 0.4));
+};
+
+const getMinFallbackLoopAreaSqMeters = (duration: number) => Math.round(getMinLoopAreaSqMeters(duration) * 0.6);
+
 // Minimum acceptable duration: we refuse loops that are way under target (e.g. half).
 const getMinAcceptableDuration = (duration: number) => Math.max(10, Math.floor(duration * 0.85));
 
@@ -276,10 +290,8 @@ const getMinAcceptableDuration = (duration: number) => Math.max(10, Math.floor(d
 // dense city centers with canals, one-way streets or river crossings still yield
 // at least one candidate whose measured OSRM walking time fits the budget.
 const createCandidateLoops = (originCoord: string, duration: number) => {
-  const safeLimit = getSafeDurationLimit(duration);
-  const targetWalkingMeters = safeLimit * EFFECTIVE_WALKING_SPEED_M_PER_MIN;
   // 3-waypoint loop perimeter ≈ ~7 * radius after street detours.
-  const baseRadius = Math.max(60, Math.min(500, Math.round(targetWalkingMeters / 7)));
+  const baseRadius = getBaseLoopRadiusMeters(duration);
   // Favor radii near target, but also probe compact urban loops. Some city centers
   // only yield valid walking circuits when the waypoints are much tighter than the
   // theoretical radius, because canals, dead ends and pedestrian geometry create large detours.
@@ -315,6 +327,26 @@ const createCandidateLoops = (originCoord: string, duration: number) => {
   return radii.flatMap((radius) =>
     angleTemplates.map((angles) => angles.map((angle) => offsetCoordinate(originCoord, radius, angle)))
   );
+};
+
+const computeLoopAreaSqMeters = (coordinates: string[]) => {
+  if (coordinates.length < 3) return 0;
+
+  const points = coordinates.map(parseCoord);
+  const averageLat = points.reduce((sum, point) => sum + point.lat, 0) / points.length;
+  const metersPerDegreeLat = 111320;
+  const metersPerDegreeLon = Math.cos((averageLat * Math.PI) / 180) * 111320;
+
+  const projected = points.map(({ lon, lat }) => ({ x: lon * metersPerDegreeLon, y: lat * metersPerDegreeLat }));
+
+  let area = 0;
+  for (let index = 0; index < projected.length; index += 1) {
+    const current = projected[index];
+    const next = projected[(index + 1) % projected.length];
+    area += current.x * next.y - next.x * current.y;
+  }
+
+  return Math.abs(area) / 2;
 };
 
 const buildGoogleMapsUrl = (origin: string, waypoints: string[]) => {
