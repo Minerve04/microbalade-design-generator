@@ -103,6 +103,70 @@ Deno.serve(async (req) => {
       return json({ data });
     }
 
+    if (action === "list_chorus") {
+      const { status } = payload ?? {};
+      let q = supabase
+        .from("commune_profiles")
+        .select(
+          "id,user_id,nom_collectivite,email,code_postal,siret,numero_engagement,code_service_chorus,adresse_facturation,email_comptabilite,abonnement_label,abonnement_prix_annuel,status_abonnement,chorus_status,chorus_requested_at,chorus_paid_at,chorus_due_date,mode_paiement"
+        )
+        .eq("mode_paiement", "chorus")
+        .order("chorus_requested_at", { ascending: false });
+      if (status && status !== "all") q = q.eq("chorus_status", status);
+      const { data, error } = await q;
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (action === "mark_chorus_paid") {
+      const { user_id } = payload ?? {};
+      if (!user_id) return json({ error: "user_id requis" }, 400);
+      const now = new Date();
+      const renouv = new Date(now);
+      renouv.setFullYear(renouv.getFullYear() + 1);
+      const { data, error } = await supabase
+        .from("commune_profiles")
+        .update({
+          status_abonnement: "active",
+          chorus_status: "paid",
+          chorus_paid_at: now.toISOString(),
+          abonnement_renouvellement: renouv.toISOString().slice(0, 10),
+        })
+        .eq("user_id", user_id)
+        .select()
+        .single();
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (action === "mark_chorus_overdue") {
+      const { user_id } = payload ?? {};
+      if (!user_id) return json({ error: "user_id requis" }, 400);
+      const { data, error } = await supabase
+        .from("commune_profiles")
+        .update({ chorus_status: "overdue" })
+        .eq("user_id", user_id)
+        .select()
+        .single();
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (action === "cancel_chorus") {
+      const { user_id } = payload ?? {};
+      if (!user_id) return json({ error: "user_id requis" }, 400);
+      const { error } = await supabase
+        .from("commune_profiles")
+        .update({
+          status_abonnement: "canceled",
+          chorus_status: "cancelled",
+          mode_paiement: "stripe",
+        })
+        .eq("user_id", user_id);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+
     return json({ error: "Unknown action" }, 400);
   } catch (e: any) {
     return json({ error: e.message ?? String(e) }, 500);
