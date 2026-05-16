@@ -68,10 +68,7 @@ const NAV: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "profile", label: "Profil & Facturation", icon: UserCircle2 },
 ];
 
-const fakeInvoices = [
-  { id: "F-2025-05", date: "01/05/2025", amount: 600, label: "Abonnement annuel 2025" },
-  { id: "F-2024-05", date: "01/05/2024", amount: 600, label: "Abonnement annuel 2024" },
-];
+// Subscriptions and invoices are managed through the Stripe Customer Portal.
 
 const MONTHS_FR = ["Janv.", "Févr.", "Mars", "Avr.", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc."];
 
