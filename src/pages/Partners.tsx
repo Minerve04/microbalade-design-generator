@@ -379,6 +379,27 @@ const Partners = () => {
         </section>
       </main>
 
+      {isOpen && (
+        <div className="fixed inset-0 z-50 bg-background/90 backdrop-blur flex items-start justify-center overflow-y-auto p-4">
+          <div className="relative w-full max-w-2xl bg-card border border-border rounded-3xl shadow-2xl mt-8 mb-8">
+            <button
+              onClick={closeCheckout}
+              className="absolute top-4 right-4 z-10 w-9 h-9 rounded-full bg-muted hover:bg-muted/70 flex items-center justify-center transition-colors"
+              aria-label="Fermer"
+            >
+              <X size={18} />
+            </button>
+            <div className="px-5 pt-12 pb-2 border-b border-border">
+              <h2 className="text-lg font-bold text-foreground">Finaliser l'abonnement</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Paiement sécurisé par Stripe · Carte ou virement SEPA accepté
+              </p>
+            </div>
+            <div className="p-2">{checkoutElement}</div>
+          </div>
+        </div>
+      )}
+
       <footer className="border-t border-border py-6 text-center text-xs text-muted-foreground">
         © {new Date().getFullYear()} Microbalade ·{" "}
         <Link to="/confidentialite" className="hover:text-foreground">Confidentialité</Link> ·{" "}
