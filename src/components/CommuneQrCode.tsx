@@ -38,21 +38,24 @@ export default function CommuneQrCode({ communeName, codePostal }: Props) {
     (async () => {
       setLoading(true);
       try {
-        if (canvasRef.current) {
-          await QRCode.toCanvas(canvasRef.current, trackingUrl, {
+        const [dataUrl, svg] = await Promise.all([
+          QRCode.toDataURL(trackingUrl, {
             width: 512,
             margin: 2,
             errorCorrectionLevel: "H",
             color: { dark: "#0a0a0a", light: "#ffffff" },
-          });
+          }),
+          QRCode.toString(trackingUrl, {
+            type: "svg",
+            margin: 2,
+            errorCorrectionLevel: "H",
+            color: { dark: "#0a0a0a", light: "#ffffff" },
+          }),
+        ]);
+        if (!cancelled) {
+          setPreviewUrl(dataUrl);
+          setSvgMarkup(svg);
         }
-        const svg = await QRCode.toString(trackingUrl, {
-          type: "svg",
-          margin: 2,
-          errorCorrectionLevel: "H",
-          color: { dark: "#0a0a0a", light: "#ffffff" },
-        });
-        if (!cancelled) setSvgMarkup(svg);
       } catch (e) {
         toast.error("Impossible de générer le QR code.");
       } finally {
