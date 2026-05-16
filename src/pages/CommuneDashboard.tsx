@@ -36,8 +36,10 @@ import { useCommuneSubscription } from "@/hooks/useCommuneSubscription";
 import { AlertTriangle, Lock } from "lucide-react";
 import { getStripeEnvironment } from "@/lib/stripe";
 import logo from "@/assets/logo.png";
+import CommuneQrCode from "@/components/CommuneQrCode";
+import { QrCode } from "lucide-react";
 
-type TabKey = "overview" | "stats" | "config" | "profile";
+type TabKey = "overview" | "stats" | "config" | "qrcode" | "profile";
 
 interface CommuneProfile {
   id: string;
@@ -66,6 +68,7 @@ const NAV: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "overview", label: "Vue d'ensemble", icon: LayoutDashboard },
   { key: "stats", label: "Données & Statistiques", icon: BarChart3 },
   { key: "config", label: "Configuration", icon: Settings },
+  { key: "qrcode", label: "QR code", icon: QrCode },
   { key: "profile", label: "Profil & Facturation", icon: UserCircle2 },
 ];
 
@@ -662,6 +665,13 @@ export default function CommuneDashboard() {
                 Enregistrer les modifications
               </button>
             </section>
+          )}
+
+          {tab === "qrcode" && (
+            <CommuneQrCode
+              communeName={profile?.nom_collectivite ?? "Microbalade"}
+              codePostal={profile?.code_postal ?? null}
+            />
           )}
 
           {tab === "profile" && (
