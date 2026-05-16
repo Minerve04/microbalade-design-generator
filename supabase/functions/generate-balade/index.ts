@@ -31,9 +31,9 @@ type BaladeStep = { title: string; description: string; place?: string };
 type Waypoint = { coord: string; label: string };
 type RouteMeasurement = { durationMinutes: number; distanceMeters: number };
 
-// Google Maps walking pace ≈ 4.5 km/h ≈ 75 m/min ; we go slightly more conservative
-// to absorb turns, traffic lights and snapping, so what we promise matches Google.
-const EFFECTIVE_WALKING_SPEED_M_PER_MIN = 70;
+// Google Maps walking pace ≈ 5 km/h ≈ 83 m/min. We align on Google's pace so that
+// what we promise matches what the user sees in Google Maps.
+const EFFECTIVE_WALKING_SPEED_M_PER_MIN = 83;
 const ORIGIN_SEARCH_TIMEOUT_MS = 3500;
 const REVERSE_GEOCODE_TIMEOUT_MS = 1800;
 const ROUTE_TIMEOUT_MS = 5000;
@@ -146,7 +146,7 @@ const getWalkingRoute = async (coordinates: string[]): Promise<RouteMeasurement>
   if (!route || typeof route.distance !== "number") throw new Error("No route");
 
   const distanceMeters = Math.round(route.distance);
-  const durationMinutes = Math.ceil(distanceMeters / EFFECTIVE_WALKING_SPEED_M_PER_MIN);
+  const durationMinutes = Math.round(distanceMeters / EFFECTIVE_WALKING_SPEED_M_PER_MIN);
   return { durationMinutes, distanceMeters };
 };
 
