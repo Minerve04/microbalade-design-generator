@@ -380,6 +380,23 @@ export default function CommuneDashboard() {
               </div>
             </div>
           )}
+          {!loadingSub && status === "trialing" && (
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3 bg-primary/10 border border-primary/30 rounded-2xl p-4">
+              <AlertTriangle className="text-primary shrink-0" size={20} />
+              <div className="text-sm flex-1">
+                <div className="font-semibold text-foreground">Activez votre abonnement</div>
+                <p className="text-muted-foreground mt-1">
+                  Votre compte est créé mais l'abonnement n'est pas encore réglé. Choisissez votre formule et payez en quelques clics pour activer définitivement votre dashboard et l'affichage de votre logo.
+                </p>
+              </div>
+              <Link
+                to="/partenaires"
+                className="shrink-0 inline-flex items-center justify-center bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:opacity-90 transition"
+              >
+                Payer mon abonnement
+              </Link>
+            </div>
+          )}
           {tab === "overview" && (
             <section className="space-y-6">
               <div className="flex items-start justify-between flex-wrap gap-4">
