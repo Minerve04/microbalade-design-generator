@@ -37,7 +37,7 @@ const EFFECTIVE_WALKING_SPEED_M_PER_MIN = 83;
 const ORIGIN_SEARCH_TIMEOUT_MS = 3500;
 const REVERSE_GEOCODE_TIMEOUT_MS = 1800;
 const ROUTE_TIMEOUT_MS = 5000;
-const AI_TIMEOUT_MS = 9000;
+const AI_TIMEOUT_MS = 25000;
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -221,11 +221,16 @@ const buildGoogleMapsUrl = (origin: string, waypoints: string[]) => {
   return url.toString();
 };
 
-const FALLBACK_DESCRIPTIONS = [
-  "Premier détour : ouvrez l'œil sur ce que la marche révèle dans les premières rues, là où la voiture n'aurait rien laissé voir. Laissez la cadence ralentir pour entrer dans le rythme de la balade.",
-  "Point de passage : ce pivot relie deux ambiances du quartier et offre un vrai temps d'observation. Profitez-en pour repérer un détail que vous n'auriez jamais remarqué autrement.",
-  "Retour par la boucle : la dernière portion vous ramène doucement vers le départ par un autre angle. Gardez les yeux levés, c'est souvent là que se cachent les meilleures surprises.",
-];
+// Fallbacks used only when the AI call fails. They reference the actual street label
+// to avoid the "generic guide" feel as much as possible.
+const buildFallbackDescription = (placeLabel: string, index: number) => {
+  const street = placeLabel.split(",")[0].trim();
+  if (index === 0)
+    return `En vous engageant dans ${street}, observez les façades, les enseignes et les matériaux qui racontent la couche la plus visible du quartier. Prenez le temps de lever les yeux : corniches, ferronneries, encadrements de fenêtres livrent souvent l'âge et l'usage d'origine des bâtiments.`;
+  if (index === 1)
+    return `${street} constitue un point d'articulation typique de ce secteur, où l'on bascule d'une ambiance à une autre — commerces, habitat, espace public. Cherchez un détail singulier (plaque, marque ancienne, décor de devanture) : c'est souvent là que se loge la mémoire du lieu.`;
+  return `Le retour par ${street} change radicalement votre angle de vue sur le quartier traversé. Notez la végétation, les jardins entrevus et les perspectives qui se dégagent — c'est la portion la plus propice à repérer ce que vous aviez manqué à l'aller.`;
+};
 
 const INTEREST_LABELS: Record<string, string> = {
   nature: "nature urbaine, jardins et arbres remarquables",
@@ -244,24 +249,27 @@ const buildAiPrompt = (
   const interestsHuman = interests.map((i) => INTEREST_LABELS[i] || i).join(", ");
   const stepsList = waypointLabels.map((label, i) => `${i + 1}. ${label}`).join("\n");
   const cityLine = city ? `Ville : ${city}\n` : "";
-  return `Tu es un guide local francophone, expert du quartier où se déroule la balade. Tu connais ${city || "cette ville"} dans le détail : son histoire, ses rues, ses commerces, son architecture, ses anecdotes. Tu écris pour quelqu'un qui marche RÉELLEMENT à cet endroit, là, maintenant.
+  return `Tu es l'auteur d'un guide touristique haut de gamme (style Routard / Lonely Planet / Guide Vert) spécialisé sur ${city || "cette ville"}. Tu connais finement son histoire, ses personnages, ses légendes, son patrimoine, ses commerces emblématiques, son architecture et ses anecdotes. Tu écris pour un promeneur qui découvre le quartier à pied, là, maintenant, et que tu veux ÉMERVEILLER.
 
 Départ : ${originLabel}
 ${cityLine}Durée mesurée : ${walkingMinutes} minutes à pied
 Centres d'intérêt du promeneur : ${interestsHuman}
 
-Étapes de la boucle (dans l'ordre, noms de rues/lieux RÉELS extraits de l'itinéraire) :
+Étapes RÉELLES de la boucle (noms de rues/lieux extraits de l'itinéraire, dans l'ordre) :
 ${stepsList}
 
-Pour CHAQUE étape, écris exactement DEUX phrases, en français, ANCRÉES dans le lieu nommé ci-dessus :
-- Phrase 1 : décris concrètement ce qu'on voit dans CETTE rue ou à CET endroit précis (nom de la rue/lieu intégré naturellement, détail visuel/sonore/olfactif tangible, élément d'architecture, commerce typique, perspective, matériau...). Pas de généralités passe-partout.
-- Phrase 2 : une vraie information liée à cet endroit ou au quartier (anecdote historique, origine du nom, fait local, usage actuel, particularité du bâti, lien avec un personnage ou un événement de ${city || "la ville"}). Si tu ne connais pas un fait précis et vérifié, donne plutôt une observation fine et crédible propre à ce type de rue dans ${city || "cette ville"} — JAMAIS de tournure générique du type "ouvrez l'œil", "laissez le rythme", "ce pivot relie deux ambiances".
+Pour CHAQUE étape, écris un mini-paragraphe de 3 à 4 phrases, en français soigné, qui ressemble à une notice de guide touristique :
+- Nomme explicitement la rue / le lieu fourni.
+- Décris ce qu'on voit concrètement à cet endroit (architecture, perspective, matériaux, commerces typiques, ambiance sonore ou olfactive).
+- Glisse au moins UNE anecdote, fait historique, légende locale, étymologie du nom, personnage célèbre, événement, métier disparu, particularité du bâti ou détail patrimonial lié à CETTE rue, ce quartier ou ${city || "cette ville"}.
+- Signale au promeneur un détail précis à observer (sculpture, plaque, vestige, enseigne, fresque, point de vue) qui crée l'effet "waouh".
 
 Règles strictes :
-- Cite le nom exact de la rue ou du lieu fourni dans la phrase 1.
-- Pas d'introduction, pas de conclusion, pas de liste à puces, pas de titre, pas d'emoji.
-- Pas de phrases creuses, pas de tutoiement injonctif vague, pas de répétitions entre les étapes.
-- Réponds STRICTEMENT en JSON :
+- Aucune phrase creuse ni formule passe-partout (interdits : "ouvrez l'œil", "laissez la cadence", "ce pivot relie deux ambiances", "gardez les yeux levés"...).
+- Si tu n'as pas d'anecdote vérifiée précise, propose une lecture experte et plausible du lieu (typologie urbaine, période architecturale, fonction historique probable) — jamais d'invention factuelle datée ou nominale.
+- Pas d'introduction, pas de conclusion, pas de listes à puces, pas de titre, pas d'emoji.
+- Varie le ton et les angles entre les 3 étapes.
+- Réponds STRICTEMENT en JSON valide :
 {"steps":[{"description":"..."},{"description":"..."},{"description":"..."}]}`;
 };
 
@@ -285,7 +293,7 @@ const generateAiDescriptions = async (
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-pro",
+          model: "google/gemini-2.5-flash",
           messages: [
             {
               role: "user",
@@ -329,8 +337,7 @@ const buildSteps = (
     title: titles[index] ?? `Étape ${index + 1}`,
     description:
       aiDescriptions?.[index] ||
-      FALLBACK_DESCRIPTIONS[index] ||
-      FALLBACK_DESCRIPTIONS[FALLBACK_DESCRIPTIONS.length - 1],
+      buildFallbackDescription(waypoint.label, index),
     place: waypoint.label,
   }));
 };
