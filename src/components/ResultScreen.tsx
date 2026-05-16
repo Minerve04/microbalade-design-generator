@@ -53,6 +53,26 @@ const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col pb-8">
+      {partner && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="w-full bg-primary/5 border-b border-primary/15 px-5 py-2.5 flex items-center justify-center gap-2.5"
+        >
+          {partner.logo_url && (
+            <img
+              src={partner.logo_url}
+              alt={`Logo Ville de ${partner.nom}`}
+              className="h-6 w-auto object-contain"
+              loading="lazy"
+            />
+          )}
+          <p className="text-xs font-medium text-foreground/80">
+            En partenariat avec la Ville de <span className="font-semibold text-foreground">{partner.nom}</span>
+          </p>
+        </motion.div>
+      )}
       {/* Map placeholder */}
       <div className="relative w-full h-56 bg-secondary overflow-hidden">
         <div className="absolute inset-0 flex items-center justify-center">
