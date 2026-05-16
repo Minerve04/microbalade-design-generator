@@ -414,14 +414,15 @@ serve(async (req) => {
       }
     }
 
-    // Only accept loops that are CLOSE to the requested duration. Falling back to
-    // bestWithinHard would let a 1-min collapsed loop win for a 30-min request
-    // (happens when offset waypoints all snap to the same rural road segment).
-    const selected = bestCloseToTarget;
+    // Prefer a loop close to the target. Otherwise, fall back to the best smaller
+    // loop we could measure — we'll honestly report its real duration in the UI
+    // (the previous bug was showing "30 min" for a 1-min loop; that's fixed by
+    // returning walking_minutes from the actual OSRM measurement). A short loop
+    // is always better than refusing the user.
+    const selected = bestCloseToTarget || bestWithinHard;
     if (!selected) {
-      const measured = bestWithinHard?.route.durationMinutes ?? 0;
       return businessError(
-        `Impossible de construire une boucle d'environ ${duration} minutes depuis cette adresse (meilleure boucle trouvée : ${measured} min). Essayez une adresse plus centrale, un autre quartier, ou un autre temps.`
+        `Impossible de tracer une boucle à pied depuis cette adresse. Essayez une adresse un peu plus précise ou plus proche d'une voie carrossable.`
       );
     }
 
