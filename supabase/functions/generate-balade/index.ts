@@ -409,10 +409,14 @@ serve(async (req) => {
       }
     }
 
-    const selected = bestCloseToTarget || bestWithinHard;
+    // Only accept loops that are CLOSE to the requested duration. Falling back to
+    // bestWithinHard would let a 1-min collapsed loop win for a 30-min request
+    // (happens when offset waypoints all snap to the same rural road segment).
+    const selected = bestCloseToTarget;
     if (!selected) {
+      const measured = bestWithinHard?.route.durationMinutes ?? 0;
       return businessError(
-        `Impossible de garantir un trajet Google Maps à pied dans ${duration} minutes maximum depuis cette adresse. Essayez une adresse plus centrale ou un temps plus long.`
+        `Impossible de construire une boucle d'environ ${duration} minutes depuis cette adresse (meilleure boucle trouvée : ${measured} min). Essayez une adresse plus centrale, un autre quartier, ou un autre temps.`
       );
     }
 
