@@ -431,6 +431,68 @@ const AdminCommunes = () => {
           </div>
         </TabsContent>
 
+        <TabsContent value="chorus" className="mt-6 space-y-3">
+          <Card className="p-4 flex flex-col sm:flex-row gap-3 sm:items-end justify-between">
+            <div className="flex-1">
+              <Label>Filtrer par statut</Label>
+              <select
+                className="mt-1 w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                value={chorusFilter}
+                onChange={(e) => { setChorusFilter(e.target.value); setTimeout(loadChorus, 0); }}
+              >
+                <option value="pending">En attente</option>
+                <option value="overdue">En retard</option>
+                <option value="paid">Payés</option>
+                <option value="all">Tous</option>
+              </select>
+            </div>
+            <Button variant="outline" onClick={loadChorus} disabled={chorusLoading}>
+              {chorusLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Rafraîchir"}
+            </Button>
+          </Card>
+
+          {chorus.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-8">Aucune demande Chorus.</p>
+          )}
+
+          {chorus.map((c) => (
+            <Card key={c.id} className="p-4 space-y-2">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <div className="font-semibold">{c.nom_collectivite} <span className="text-muted-foreground font-normal">({c.code_postal ?? "—"})</span></div>
+                  <div className="text-xs text-muted-foreground">{c.email}</div>
+                </div>
+                <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                  c.chorus_status === "paid" ? "bg-emerald-100 text-emerald-800" :
+                  c.chorus_status === "overdue" ? "bg-destructive/15 text-destructive" :
+                  "bg-amber-100 text-amber-800"
+                }`}>
+                  {c.chorus_status === "paid" ? "Payé" : c.chorus_status === "overdue" ? "En retard" : "En attente"}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                <div><span className="text-muted-foreground">SIRET :</span> {c.siret ?? "—"}</div>
+                <div><span className="text-muted-foreground">Engagement :</span> {c.numero_engagement ?? "—"}</div>
+                <div><span className="text-muted-foreground">Code service :</span> {c.code_service_chorus ?? "—"}</div>
+                <div><span className="text-muted-foreground">Compta :</span> {c.email_comptabilite ?? "—"}</div>
+                <div className="sm:col-span-2 whitespace-pre-line"><span className="text-muted-foreground">Adresse :</span> {c.adresse_facturation ?? "—"}</div>
+                <div><span className="text-muted-foreground">Formule :</span> {c.abonnement_label} — {c.abonnement_prix_annuel} €</div>
+                <div><span className="text-muted-foreground">Échéance :</span> {c.chorus_due_date ? new Date(c.chorus_due_date).toLocaleDateString("fr-FR") : "—"}</div>
+                <div><span className="text-muted-foreground">Demandé le :</span> {c.chorus_requested_at ? new Date(c.chorus_requested_at).toLocaleDateString("fr-FR") : "—"}</div>
+                {c.chorus_paid_at && <div><span className="text-muted-foreground">Payé le :</span> {new Date(c.chorus_paid_at).toLocaleDateString("fr-FR")}</div>}
+              </div>
+              {c.chorus_status !== "paid" && (
+                <div className="flex gap-2 pt-2">
+                  <Button size="sm" onClick={() => markChorusPaid(c.user_id)}>Marquer comme payé</Button>
+                  {c.chorus_status !== "overdue" && (
+                    <Button size="sm" variant="outline" onClick={() => markChorusOverdue(c.user_id)}>Marquer en retard</Button>
+                  )}
+                </div>
+              )}
+            </Card>
+          ))}
+        </TabsContent>
+
         <TabsContent value="stats" className="mt-6 space-y-4">
           <Card className="p-4 flex flex-col sm:flex-row gap-3 sm:items-end justify-between">
             <div className="flex-1 min-w-0">
