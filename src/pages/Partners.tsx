@@ -47,9 +47,6 @@ const benefits = [
 ];
 
 const Partners = () => {
-  const [form, setForm] = useState({ name: "", role: "", organization: "", email: "", phone: "", message: "" });
-  const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
   const [population, setPopulation] = useState<number>(8000);
   const [communeQuery, setCommuneQuery] = useState("");
   const { user } = useAuth();
@@ -71,35 +68,6 @@ const Partners = () => {
       returnUrl: `${window.location.origin}/partenaires/paiement-confirme?session_id={CHECKOUT_SESSION_ID}`,
     });
   };
-
-  const scrollToContact = () => {
-    document.getElementById("contact")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    if (communeQuery.trim()) {
-      setForm((prev) => ({ ...prev, organization: prev.organization || communeQuery.trim() }));
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.name.trim() || !form.email.trim() || !form.organization.trim()) {
-      toast.error("Merci de renseigner les champs obligatoires");
-      return;
-    }
-    setLoading(true);
-    const subject = encodeURIComponent(`Demande de démonstration Microbalade — ${form.organization}`);
-    const body = encodeURIComponent(
-      `Nom : ${form.name}\nFonction : ${form.role}\nOrganisation : ${form.organization}\nEmail : ${form.email}\nTéléphone : ${form.phone}\n\nMessage :\n${form.message}`
-    );
-    window.location.href = `mailto:contact@microbalade.fr?subject=${subject}&body=${body}`;
-    setTimeout(() => {
-      setLoading(false);
-      setSent(true);
-      toast.success("Votre demande a été préparée. Merci !");
-    }, 600);
-  };
-
-  const updateField = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
   return (
     <div className="min-h-screen bg-background">
