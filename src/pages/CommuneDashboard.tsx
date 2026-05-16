@@ -672,40 +672,35 @@ export default function CommuneDashboard() {
                 </div>
               </div>
 
-              <div className="bg-card border border-border rounded-2xl overflow-hidden">
-                <div className="px-6 py-4 border-b border-border">
-                  <h2 className="font-semibold text-foreground">Factures passées</h2>
-                </div>
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/40 text-muted-foreground text-xs uppercase tracking-wider">
-                    <tr>
-                      <th className="text-left px-6 py-3 font-semibold">Référence</th>
-                      <th className="text-left px-6 py-3 font-semibold">Date</th>
-                      <th className="text-left px-6 py-3 font-semibold">Libellé</th>
-                      <th className="text-right px-6 py-3 font-semibold">Montant</th>
-                      <th className="px-6 py-3"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {fakeInvoices.map((f) => (
-                      <tr key={f.id} className="hover:bg-muted/30">
-                        <td className="px-6 py-3 text-foreground font-medium">{f.id}</td>
-                        <td className="px-6 py-3 text-muted-foreground">{f.date}</td>
-                        <td className="px-6 py-3 text-muted-foreground">{f.label}</td>
-                        <td className="px-6 py-3 text-right text-foreground font-semibold">{f.amount} €</td>
-                        <td className="px-6 py-3 text-right">
-                          <button
-                            onClick={() => toast.info("Téléchargement PDF bientôt disponible")}
-                            className="inline-flex items-center gap-1.5 text-primary text-xs font-semibold hover:underline"
-                          >
-                            <FileText size={14} />
-                            PDF
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
+                <h2 className="font-semibold text-foreground">Factures & paiement</h2>
+                <p className="text-sm text-muted-foreground">
+                  Téléchargez vos factures PDF officielles, mettez à jour votre carte ou
+                  votre mandat SEPA, et gérez votre abonnement depuis le portail sécurisé Stripe.
+                </p>
+                <button
+                  onClick={async () => {
+                    try {
+                      const { data, error } = await supabase.functions.invoke("create-portal-session", {
+                        body: {
+                          returnUrl: window.location.origin + "/dashboard/commune",
+                          environment: getStripeEnvironment(),
+                        },
+                      });
+                      if (error || !data?.url) {
+                        toast.error("Activez d'abord votre abonnement pour accéder au portail.");
+                        return;
+                      }
+                      window.open(data.url, "_blank");
+                    } catch {
+                      toast.error("Impossible d'ouvrir le portail pour le moment.");
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-3 rounded-xl text-sm font-semibold shadow-lg shadow-primary/25 hover:shadow-xl transition-all"
+                >
+                  <ExternalLink size={16} />
+                  Gérer mon abonnement et mes factures
+                </button>
               </div>
             </section>
           )}
