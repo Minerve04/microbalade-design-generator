@@ -22,6 +22,49 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
   const [duration, setDuration] = useState(30);
   const [selected, setSelected] = useState<string[]>([]);
   const [geoLoading, setGeoLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState<Array<{ display_name: string }>>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const skipNextFetch = useRef(false);
+
+  useEffect(() => {
+    if (skipNextFetch.current) {
+      skipNextFetch.current = false;
+      return;
+    }
+    if (location.trim().length < 3) {
+      setSuggestions([]);
+      return;
+    }
+    const ctrl = new AbortController();
+    const timer = setTimeout(async () => {
+      setSuggestLoading(true);
+      try {
+        const r = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&limit=5&addressdetails=1&accept-language=fr&q=${encodeURIComponent(location)}`,
+          { signal: ctrl.signal }
+        );
+        const data = await r.json();
+        setSuggestions(Array.isArray(data) ? data : []);
+        setShowSuggestions(true);
+      } catch {
+        // ignore
+      } finally {
+        setSuggestLoading(false);
+      }
+    }, 350);
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
+  }, [location]);
+
+  const selectSuggestion = (name: string) => {
+    skipNextFetch.current = true;
+    setLocation(name);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
 
   const handleGeolocate = () => {
     if (!navigator.geolocation) {
