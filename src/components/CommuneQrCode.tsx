@@ -23,6 +23,7 @@ function slugify(s: string) {
 export default function CommuneQrCode({ communeName, codePostal }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [svgMarkup, setSvgMarkup] = useState<string>("");
+  const [previewUrl, setPreviewUrl] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
   // Unique tracking URL per commune (visible to user, also useful for stats).
@@ -37,21 +38,24 @@ export default function CommuneQrCode({ communeName, codePostal }: Props) {
     (async () => {
       setLoading(true);
       try {
-        if (canvasRef.current) {
-          await QRCode.toCanvas(canvasRef.current, trackingUrl, {
+        const [dataUrl, svg] = await Promise.all([
+          QRCode.toDataURL(trackingUrl, {
             width: 512,
             margin: 2,
             errorCorrectionLevel: "H",
             color: { dark: "#0a0a0a", light: "#ffffff" },
-          });
+          }),
+          QRCode.toString(trackingUrl, {
+            type: "svg",
+            margin: 2,
+            errorCorrectionLevel: "H",
+            color: { dark: "#0a0a0a", light: "#ffffff" },
+          }),
+        ]);
+        if (!cancelled) {
+          setPreviewUrl(dataUrl);
+          setSvgMarkup(svg);
         }
-        const svg = await QRCode.toString(trackingUrl, {
-          type: "svg",
-          margin: 2,
-          errorCorrectionLevel: "H",
-          color: { dark: "#0a0a0a", light: "#ffffff" },
-        });
-        if (!cancelled) setSvgMarkup(svg);
       } catch (e) {
         toast.error("Impossible de générer le QR code.");
       } finally {
@@ -131,13 +135,17 @@ export default function CommuneQrCode({ communeName, codePostal }: Props) {
 
   const downloadPdf = async () => {
     try {
-      const dataUrl = await QRCode.toDataURL(trackingUrl, {
+      // Generate real JPEG bytes (required by /DCTDecode).
+      const canvas = document.createElement("canvas");
+      await QRCode.toCanvas(canvas, trackingUrl, {
         width: 1024,
         margin: 2,
         errorCorrectionLevel: "H",
+        color: { dark: "#0a0a0a", light: "#ffffff" },
       });
-      // Minimal single-page A4 PDF embedding the PNG. No external deps.
-      const pngBytes = Uint8Array.from(atob(dataUrl.split(",")[1]), (c) => c.charCodeAt(0));
+      const jpegDataUrl = canvas.toDataURL("image/jpeg", 0.95);
+      const jpegBytes = Uint8Array.from(atob(jpegDataUrl.split(",")[1]), (c) => c.charCodeAt(0));
+
       const pdfParts: (string | Uint8Array)[] = [];
       const offsets: number[] = [];
       let pos = 0;
@@ -158,12 +166,12 @@ export default function CommuneQrCode({ communeName, codePostal }: Props) {
       addObj(
         "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /XObject << /Im0 4 0 R >> /Font << /F1 5 0 R >> >> /Contents 6 0 R >>"
       );
-      // Image XObject
-      const header = `<< /Type /XObject /Subtype /Image /Width 1024 /Height 1024 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${pngBytes.byteLength} >>\nstream\n`;
+      // Image XObject (JPEG via /DCTDecode)
+      const header = `<< /Type /XObject /Subtype /Image /Width 1024 /Height 1024 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.byteLength} >>\nstream\n`;
       offsets.push(pos);
       push(`4 0 obj\n`);
       push(header);
-      push(pngBytes);
+      push(jpegBytes);
       push("\nendstream\nendobj\n");
       addObj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
       const safeUrl = trackingUrl.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
@@ -178,7 +186,6 @@ export default function CommuneQrCode({ communeName, codePostal }: Props) {
       triggerDownload(url, "pdf");
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch {
-      // Fallback: just download the PNG if the PDF embedding fails.
       toast.error("PDF indisponible, téléchargement en PNG à la place.");
       downloadPng();
     }
@@ -198,10 +205,10 @@ export default function CommuneQrCode({ communeName, codePostal }: Props) {
 
       <div className="bg-card border border-border rounded-2xl p-6 grid md:grid-cols-[auto,1fr] gap-6 items-center">
         <div className="w-56 h-56 bg-white rounded-2xl border border-border p-3 flex items-center justify-center shadow-sm">
-          {loading ? (
+          {loading || !previewUrl ? (
             <Loader2 className="text-muted-foreground animate-spin" size={28} />
           ) : (
-            <canvas ref={canvasRef} className="w-full h-full" />
+            <img src={previewUrl} alt="QR code Microbalade" className="w-full h-full object-contain" />
           )}
         </div>
 
