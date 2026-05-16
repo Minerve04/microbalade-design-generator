@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { motion } from "framer-motion";
-import { ArrowLeft, Landmark, BarChart3, Store, Send, Loader2, CheckCircle2, Search, ArrowRight, X } from "lucide-react";
+import { ArrowLeft, Landmark, BarChart3, Store, Send, Loader2, CheckCircle2, Search, ArrowRight, X, CreditCard, QrCode } from "lucide-react";
 import { toast } from "sonner";
 import { Slider } from "@/components/ui/slider";
 import logo from "@/assets/logo.png";
@@ -182,19 +182,46 @@ const Partners = () => {
         </section>
 
         {/* How it works */}
-        <section className="glass-card rounded-3xl p-8 md:p-12 space-y-6">
-          <h2 className="text-2xl md:text-3xl font-bold text-foreground text-center">Une mise en place simple</h2>
-          <div className="grid md:grid-cols-3 gap-6 pt-2">
+        <section className="space-y-8">
+          <div className="text-center space-y-2">
+            <h2 className="text-2xl md:text-3xl font-bold text-foreground">Comment ça marche ?</h2>
+            <p className="text-muted-foreground">Un processus simple en trois étapes.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {[
-              { n: "01", t: "Échange initial", d: "Nous découvrons ensemble vos enjeux et le périmètre de votre territoire." },
-              { n: "02", t: "Personnalisation", d: "Vos points d'intérêt, anecdotes et commerces sont intégrés au générateur." },
-              { n: "03", t: "Déploiement", d: "Vos visiteurs accèdent à Microbalade depuis votre site, vos QR codes ou vos supports print." },
-            ].map((s) => (
-              <div key={s.n} className="space-y-2">
-                <div className="text-3xl font-extrabold text-primary">{s.n}</div>
-                <h3 className="font-semibold text-foreground">{s.t}</h3>
-                <p className="text-sm text-muted-foreground">{s.d}</p>
-              </div>
+              {
+                icon: CreditCard,
+                title: "1. Choisissez votre offre",
+                description:
+                  "Estimez le tarif de votre abonnement annuel selon le nombre d'habitants de votre commune grâce à notre curseur dynamique et activez vos services en quelques clics via notre paiement sécurisé Stripe.",
+              },
+              {
+                icon: QrCode,
+                title: "2. Téléchargez votre QR Code",
+                description:
+                  "Accédez instantanément à votre espace partenaire pour télécharger le QR Code officiel de votre commune. Intégrez-le librement sur vos supports existants (bulletin municipal, panneaux d'affichage, site web).",
+              },
+              {
+                icon: BarChart3,
+                title: "3. Suivez vos statistiques",
+                description:
+                  "Connectez-vous à votre tableau de bord sécurisé pour analyser la fréquentation en temps réel. Découvrez le nombre de microbalades générées sur votre territoire et téléchargez vos rapports de données.",
+              },
+            ].map((step, i) => (
+              <motion.article
+                key={step.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: i * 0.1 }}
+                className="glass-card rounded-2xl p-6 space-y-3 flex flex-col"
+              >
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                  <step.icon size={24} />
+                </div>
+                <h3 className="text-lg font-semibold text-foreground">{step.title}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
+              </motion.article>
             ))}
           </div>
         </section>
