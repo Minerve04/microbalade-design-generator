@@ -42,8 +42,6 @@ const ROUTE_TIMEOUT_MS = 5000;
 const AI_TIMEOUT_MS = 25000;
 const MAX_ACCEPTABLE_OVERLAP_RATIO = 0.18;
 const MAX_FALLBACK_OVERLAP_RATIO = 0.32;
-const MIN_DISTINCT_ROADS = 3;
-const MAX_WAYPOINTS_ON_ORIGIN_ROAD = 1;
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -134,40 +132,6 @@ const reverseGeocodeDetails = async (coord: string): Promise<{ postcode?: string
     return {};
   }
 };
-
-const reverseGeocodeRoadName = async (coord: string): Promise<string | null> => {
-  try {
-    const { lat, lon } = parseCoord(coord);
-    const response = await fetchWithTimeout(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=fr&addressdetails=1`,
-      { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } },
-      REVERSE_GEOCODE_TIMEOUT_MS
-    );
-    if (!response.ok) return null;
-    const data = await response.json();
-    const address = data?.address || {};
-    return (
-      address.road ||
-      address.pedestrian ||
-      address.footway ||
-      address.cycleway ||
-      address.path ||
-      address.neighbourhood ||
-      address.suburb ||
-      null
-    );
-  } catch {
-    return null;
-  }
-};
-
-const normalizeRoadName = (value: string | null | undefined) =>
-  (value || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
 
 const getSegmentKey = (a: RouteGeometryPoint, b: RouteGeometryPoint) => {
   const pointA = `${a[0].toFixed(5)},${a[1].toFixed(5)}`;
