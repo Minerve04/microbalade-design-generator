@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      commune_profiles: {
+        Row: {
+          abonnement_label: string
+          abonnement_prix_annuel: number
+          abonnement_renouvellement: string
+          code_postal: string | null
+          created_at: string
+          email: string
+          id: string
+          lien_action: string | null
+          logo_url: string | null
+          nom_collectivite: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          abonnement_label?: string
+          abonnement_prix_annuel?: number
+          abonnement_renouvellement?: string
+          code_postal?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          lien_action?: string | null
+          logo_url?: string | null
+          nom_collectivite: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          abonnement_label?: string
+          abonnement_prix_annuel?: number
+          abonnement_renouvellement?: string
+          code_postal?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          lien_action?: string | null
+          logo_url?: string | null
+          nom_collectivite?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       communes_partenaires: {
         Row: {
           active: boolean
