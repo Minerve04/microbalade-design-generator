@@ -89,6 +89,17 @@ export default function CommuneDashboard() {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Date filter (default = last 6 months)
+  const today = useMemo(() => new Date(), []);
+  const sixMonthsAgo = useMemo(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 5);
+    d.setDate(1);
+    return d;
+  }, []);
+  const [from, setFrom] = useState<string>(toInputDate(sixMonthsAgo));
+  const [to, setTo] = useState<string>(toInputDate(today));
+
   // Form state
   const [lienAction, setLienAction] = useState("");
   const [codePostal, setCodePostal] = useState("");
