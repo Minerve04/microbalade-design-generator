@@ -508,14 +508,15 @@ serve(async (req) => {
     const loops = createCandidateLoops(originResolved.coord, duration);
 
     const minAcceptable = getMinAcceptableDuration(duration);
-    const originRoadName = normalizeRoadName(await reverseGeocodeRoadName(originResolved.coord));
+    const minLoopAreaSqMeters = getMinLoopAreaSqMeters(duration);
+    const minFallbackLoopAreaSqMeters = getMinFallbackLoopAreaSqMeters(duration);
 
     // Pick the candidate whose measured duration is CLOSEST to the requested duration
     // (without exceeding it). We evaluate ALL candidates — no early exit — so a tiny
     // 15-min loop never wins over a true 29-min loop for a 30-min request.
-    let bestCloseToTarget: { coords: string[]; route: RouteMeasurement } | null = null;
-    let bestWithinHard: { coords: string[]; route: RouteMeasurement } | null = null;
-    let bestLowOverlap: { coords: string[]; route: RouteMeasurement } | null = null;
+    let bestCloseToTarget: CandidateLoop | null = null;
+    let bestWithinHard: CandidateLoop | null = null;
+    let bestLowOverlap: CandidateLoop | null = null;
 
     const CHUNK = 8;
     for (let i = 0; i < loops.length; i += CHUNK) {
@@ -530,27 +531,24 @@ serve(async (req) => {
       for (const r of results) {
         if (r.status !== "fulfilled") continue;
         const { loop, route } = r.value;
-        const roadNames = await Promise.all(loop.map((coord) => reverseGeocodeRoadName(coord)));
-        const normalizedRoads = roadNames.map(normalizeRoadName).filter(Boolean);
-        const distinctRoadCount = new Set(normalizedRoads).size;
-        const waypointsOnOriginRoad = normalizedRoads.filter((road) => road === originRoadName).length;
+        const loopAreaSqMeters = computeLoopAreaSqMeters(loop);
         const isCleanLoop =
-          distinctRoadCount >= MIN_DISTINCT_ROADS &&
-          waypointsOnOriginRoad <= MAX_WAYPOINTS_ON_ORIGIN_ROAD &&
+          loopAreaSqMeters >= minLoopAreaSqMeters &&
           route.overlapRatio <= MAX_ACCEPTABLE_OVERLAP_RATIO;
 
         if (route.durationMinutes <= duration) {
           const isBetterFallback =
             route.overlapRatio <= MAX_FALLBACK_OVERLAP_RATIO &&
-            distinctRoadCount >= 2 &&
-            waypointsOnOriginRoad <= 1 &&
+            loopAreaSqMeters >= minFallbackLoopAreaSqMeters &&
             (!bestLowOverlap ||
               route.durationMinutes > bestLowOverlap.route.durationMinutes ||
               (route.durationMinutes === bestLowOverlap.route.durationMinutes &&
-                route.overlapRatio < bestLowOverlap.route.overlapRatio));
+                (route.overlapRatio < bestLowOverlap.route.overlapRatio ||
+                  (route.overlapRatio === bestLowOverlap.route.overlapRatio &&
+                    loopAreaSqMeters > bestLowOverlap.loopAreaSqMeters))));
 
           if (isBetterFallback) {
-            bestLowOverlap = { coords: loop, route };
+            bestLowOverlap = { coords: loop, route, loopAreaSqMeters };
           }
 
           if (
@@ -558,18 +556,22 @@ serve(async (req) => {
             (!bestWithinHard ||
               route.durationMinutes > bestWithinHard.route.durationMinutes ||
               (route.durationMinutes === bestWithinHard.route.durationMinutes &&
-                route.overlapRatio < bestWithinHard.route.overlapRatio))
+                (route.overlapRatio < bestWithinHard.route.overlapRatio ||
+                  (route.overlapRatio === bestWithinHard.route.overlapRatio &&
+                    loopAreaSqMeters > bestWithinHard.loopAreaSqMeters))))
           ) {
-            bestWithinHard = { coords: loop, route };
+            bestWithinHard = { coords: loop, route, loopAreaSqMeters };
           }
           if (isCleanLoop && route.durationMinutes >= minAcceptable) {
             if (
               !bestCloseToTarget ||
               route.durationMinutes > bestCloseToTarget.route.durationMinutes ||
               (route.durationMinutes === bestCloseToTarget.route.durationMinutes &&
-                route.overlapRatio < bestCloseToTarget.route.overlapRatio)
+                (route.overlapRatio < bestCloseToTarget.route.overlapRatio ||
+                  (route.overlapRatio === bestCloseToTarget.route.overlapRatio &&
+                    loopAreaSqMeters > bestCloseToTarget.loopAreaSqMeters)))
             ) {
-              bestCloseToTarget = { coords: loop, route };
+              bestCloseToTarget = { coords: loop, route, loopAreaSqMeters };
             }
           }
         }
