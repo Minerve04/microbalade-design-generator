@@ -899,6 +899,33 @@ export default function CommuneDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {profile && user && (
+        <ChorusRequestDialog
+          open={chorusOpen}
+          onOpenChange={setChorusOpen}
+          userId={user.id}
+          email={profile.email}
+          nomCollectivite={profile.nom_collectivite}
+          prixAnnuel={profile.abonnement_prix_annuel}
+          formuleLabel={profile.abonnement_label}
+          initial={{
+            siret: profile.siret,
+            numero_engagement: profile.numero_engagement,
+            code_service_chorus: profile.code_service_chorus,
+            adresse_facturation: profile.adresse_facturation,
+            email_comptabilite: profile.email_comptabilite,
+          }}
+          onSuccess={async () => {
+            const { data } = await supabase
+              .from("commune_profiles")
+              .select("*")
+              .eq("user_id", user.id)
+              .maybeSingle();
+            if (data) setProfile(data as CommuneProfile);
+          }}
+        />
+      )}
     </div>
   );
 }
