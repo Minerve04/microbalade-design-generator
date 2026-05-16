@@ -42,9 +42,9 @@ type RouteCandidate = {
 };
 
 const WALKING_SPEED_METERS_PER_MINUTE = 75;
-const MAX_CANDIDATE_PLACES = 8;
-const MAX_COMBINATIONS_TO_TEST = 12;
-const MAX_PERMUTATIONS_PER_COMBINATION = 2;
+const MAX_CANDIDATE_PLACES = 5;
+const MAX_COMBINATIONS_TO_TEST = 5;
+const MAX_PERMUTATIONS_PER_COMBINATION = 1;
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -313,76 +313,6 @@ const buildFallbackSteps = (places: DiscoveredPlace[]): BaladeStep[] =>
     description: `${place.name} offre une halte piétonne cohérente dans votre boucle découverte. Prenez le temps d'observer les détails du lieu avant de repartir à pied vers l'étape suivante.`,
     place: place.place,
   }));
-
-const generateNarrativeSteps = async (
-  places: DiscoveredPlace[],
-  location: string,
-  duration: number,
-  interestText: string,
-  apiKey?: string | null
-): Promise<BaladeStep[]> => {
-  if (!apiKey) {
-    return buildFallbackSteps(places);
-  }
-
-  const userPrompt = [
-    `Point de départ : ${location}`,
-    `Temps total maximum de la boucle : ${duration} minutes à pied`,
-    `Thème : ${interestText}`,
-    `Écris exactement 3 étapes pour ces lieux et dans cet ordre, sans en changer les noms :`,
-    ...places.map((place, index) => `${index + 1}. ${place.place} [${place.type}]`),
-  ].join("\n");
-
-  try {
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userPrompt },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
-
-    if (!response.ok) {
-      return buildFallbackSteps(places);
-    }
-
-    const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content;
-    const parsed = JSON.parse(content ?? "{}");
-    const steps = Array.isArray(parsed?.steps) ? parsed.steps.slice(0, 3) : [];
-
-    if (steps.length !== 3) {
-      return buildFallbackSteps(places);
-    }
-
-    const normalizedPlaces = places.map((place) => normalizePlace(place.place));
-    const valid = steps.every((step: BaladeStep, index: number) => {
-      const description = String(step?.description || "").trim();
-      const sentenceCount = description.split(/[.!?]+/).filter((part: string) => part.trim().length > 0).length;
-      return normalizePlace(String(step?.place || "")) === normalizedPlaces[index] && sentenceCount === 2;
-    });
-
-    if (!valid) {
-      return buildFallbackSteps(places);
-    }
-
-    return steps.map((step: BaladeStep, index: number) => ({
-      title: String(step.title || places[index].name).trim() || places[index].name,
-      description: String(step.description || buildFallbackSteps([places[index]])[0].description).trim(),
-      place: places[index].place,
-    }));
-  } catch {
-    return buildFallbackSteps(places);
-  }
-};
 
 const selectBestRoute = async (
   originCoord: string,
