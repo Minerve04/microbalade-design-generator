@@ -85,9 +85,11 @@ export default function CommuneDashboard() {
   const { user, signOut } = useAuth();
   const { isActive, status, loading: loadingSub } = useCommuneSubscription();
   const [tab, setTab] = useState<TabKey>("overview");
-  const locked = !loadingSub && !isActive;
+  // "locked" : abonnement cassé (impayé, annulé…) — pas pour un compte jamais payé.
+  const locked = !loadingSub && !isActive && status !== "trialing";
+  const neverPaid = !loadingSub && status === "trialing";
 
-  // Force user onto billing tab if subscription is not active
+  // Force user onto billing tab only when subscription is broken
   useEffect(() => {
     if (locked && tab !== "profile") setTab("profile");
   }, [locked, tab]);
@@ -380,13 +382,13 @@ export default function CommuneDashboard() {
               </div>
             </div>
           )}
-          {!loadingSub && status === "trialing" && (
+          {neverPaid && (
             <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3 bg-primary/10 border border-primary/30 rounded-2xl p-4">
               <AlertTriangle className="text-primary shrink-0" size={20} />
               <div className="text-sm flex-1">
-                <div className="font-semibold text-foreground">Activez votre abonnement</div>
+                <div className="font-semibold text-foreground">Abonnement inactif — paiement requis</div>
                 <p className="text-muted-foreground mt-1">
-                  Votre compte est créé mais l'abonnement n'est pas encore réglé. Choisissez votre formule et payez en quelques clics pour activer définitivement votre dashboard et l'affichage de votre logo.
+                  Votre compte est créé mais aucun paiement n'a été enregistré. Choisissez votre formule pour activer votre dashboard et l'affichage de votre logo sur Microbalade.
                 </p>
               </div>
               <Link
@@ -428,6 +430,43 @@ export default function CommuneDashboard() {
                     />
                   </div>
                 </div>
+              </div>
+
+              <div className="bg-card border border-border rounded-2xl p-5 md:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`h-2.5 w-2.5 rounded-full ${
+                      isActive ? "bg-emerald-500" : "bg-destructive"
+                    }`}
+                  />
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Statut de l'abonnement
+                    </div>
+                    <div className="text-lg font-extrabold text-foreground">
+                      {isActive ? "Actif" : "Inactif — paiement requis"}
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-0.5">
+                      Formule : <span className="font-semibold text-foreground">{profile?.abonnement_label ?? "—"}</span>
+                      {profile?.abonnement_prix_annuel ? ` · ${profile.abonnement_prix_annuel} € / an` : ""}
+                    </div>
+                  </div>
+                </div>
+                {!isActive ? (
+                  <Link
+                    to="/partenaires"
+                    className="shrink-0 inline-flex items-center justify-center bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:opacity-90 transition"
+                  >
+                    Payer mon abonnement
+                  </Link>
+                ) : (
+                  <button
+                    onClick={() => setTab("profile")}
+                    className="shrink-0 inline-flex items-center justify-center bg-secondary text-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:bg-secondary/80 transition"
+                  >
+                    Gérer
+                  </button>
+                )}
               </div>
 
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -726,8 +765,8 @@ export default function CommuneDashboard() {
                   </div>
                   {(() => {
                     const map: Record<string, { label: string; cls: string }> = {
-                      active: { label: "Actif", cls: "text-primary bg-primary/10" },
-                      trialing: { label: "Période d'essai", cls: "text-primary bg-primary/10" },
+                      active: { label: "Actif", cls: "text-emerald-700 bg-emerald-100" },
+                      trialing: { label: "Inactif — paiement requis", cls: "text-destructive bg-destructive/10" },
                       past_due: { label: "Paiement en retard", cls: "text-amber-700 bg-amber-100" },
                       unpaid: { label: "Impayé", cls: "text-destructive bg-destructive/10" },
                       canceled: { label: "Annulé", cls: "text-destructive bg-destructive/10" },
