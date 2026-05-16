@@ -37,7 +37,7 @@ const EFFECTIVE_WALKING_SPEED_M_PER_MIN = 83;
 const ORIGIN_SEARCH_TIMEOUT_MS = 3500;
 const REVERSE_GEOCODE_TIMEOUT_MS = 1800;
 const ROUTE_TIMEOUT_MS = 5000;
-const AI_TIMEOUT_MS = 9000;
+const AI_TIMEOUT_MS = 25000;
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -221,11 +221,16 @@ const buildGoogleMapsUrl = (origin: string, waypoints: string[]) => {
   return url.toString();
 };
 
-const FALLBACK_DESCRIPTIONS = [
-  "Premier détour : ouvrez l'œil sur ce que la marche révèle dans les premières rues, là où la voiture n'aurait rien laissé voir. Laissez la cadence ralentir pour entrer dans le rythme de la balade.",
-  "Point de passage : ce pivot relie deux ambiances du quartier et offre un vrai temps d'observation. Profitez-en pour repérer un détail que vous n'auriez jamais remarqué autrement.",
-  "Retour par la boucle : la dernière portion vous ramène doucement vers le départ par un autre angle. Gardez les yeux levés, c'est souvent là que se cachent les meilleures surprises.",
-];
+// Fallbacks used only when the AI call fails. They reference the actual street label
+// to avoid the "generic guide" feel as much as possible.
+const buildFallbackDescription = (placeLabel: string, index: number) => {
+  const street = placeLabel.split(",")[0].trim();
+  if (index === 0)
+    return `En vous engageant dans ${street}, observez les façades, les enseignes et les matériaux qui racontent la couche la plus visible du quartier. Prenez le temps de lever les yeux : corniches, ferronneries, encadrements de fenêtres livrent souvent l'âge et l'usage d'origine des bâtiments.`;
+  if (index === 1)
+    return `${street} constitue un point d'articulation typique de ce secteur, où l'on bascule d'une ambiance à une autre — commerces, habitat, espace public. Cherchez un détail singulier (plaque, marque ancienne, décor de devanture) : c'est souvent là que se loge la mémoire du lieu.`;
+  return `Le retour par ${street} change radicalement votre angle de vue sur le quartier traversé. Notez la végétation, les jardins entrevus et les perspectives qui se dégagent — c'est la portion la plus propice à repérer ce que vous aviez manqué à l'aller.`;
+};
 
 const INTEREST_LABELS: Record<string, string> = {
   nature: "nature urbaine, jardins et arbres remarquables",
