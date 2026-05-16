@@ -86,6 +86,25 @@ export default function CommuneQrCode({ communeName, codePostal }: Props) {
     }
   };
 
+  const downloadPngTransparent = async () => {
+    try {
+      const dataUrl = await QRCode.toDataURL(trackingUrl, {
+        width: 2048,
+        margin: 2,
+        errorCorrectionLevel: "H",
+        color: { dark: "#0a0a0a", light: "#00000000" },
+      });
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = `${fileBase}-transparent.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch {
+      toast.error("Erreur lors du téléchargement PNG transparent.");
+    }
+  };
+
   const downloadJpg = async () => {
     try {
       const canvas = document.createElement("canvas");
@@ -201,6 +220,7 @@ export default function CommuneQrCode({ communeName, codePostal }: Props) {
 
           <div className="flex flex-wrap gap-2">
             <DownloadButton onClick={downloadPng} label="PNG" />
+            <DownloadButton onClick={downloadPngTransparent} label="PNG transparent" />
             <DownloadButton onClick={downloadJpg} label="JPG" />
             <DownloadButton onClick={downloadSvg} label="SVG" />
             <DownloadButton onClick={downloadPdf} label="PDF" />
