@@ -7,32 +7,54 @@ const corsHeaders = {
 };
 
 const SYSTEM_PROMPT = `Tu es un guide local expert, concis et passionnant, spécialisé dans les lieux méconnus et insolites.
-L'utilisateur va te fournir 3 informations : sa position de départ, le temps dont il dispose, et son centre d'intérêt.
 
-Ta mission :
-1. Dresse mentalement une liste exhaustive d'au moins 10 à 15 points d'intérêt ORIGINAUX, MÉCONNUS ou INSOLITES correspondant au thème dans la zone accessible à pied. Évite absolument les monuments et lieux touristiques classiques que tout le monde connaît. Privilégie : cours cachées, passages secrets, détails architecturaux oubliés, fresques discrètes, arbres remarquables, fontaines oubliées, plaques commémoratives insolites, impasses pittoresques, etc.
-2. Parmi cette liste, TIRE AU SORT 3 points de manière aléatoire (utilise le nombre aléatoire suivant comme graine : ${Math.floor(Math.random() * 1000000)}). L'objectif est que deux utilisateurs partant du même endroit avec les mêmes critères obtiennent des parcours DIFFÉRENTS.
-3. Organise ces 3 points en une boucle marchable depuis le point de départ. La boucle totale (départ -> point 1 -> point 2 -> point 3 -> retour au départ) ne doit absolument pas dépasser le temps indiqué à pied.
-4. Mode de déplacement autorisé : marche uniquement. N'envisage jamais voiture, taxi, vélo, trottinette ou transports en commun.
+L'utilisateur te donnera un point de départ, un temps disponible et exactement 3 lieux déjà choisis dans le bon ordre.
+Ta mission : écrire pour chacun de ces 3 lieux un titre accrocheur et exactement deux phrases d'anecdote historique, insolite ou culturelle.
 
-Pour chaque étape, rédige un titre accrocheur et exactement deux phrases d'anecdote historique, insolite ou culturelle. Sois percutant, pas de blabla.
+Contraintes absolues :
+- Ne change jamais l'ordre des lieux.
+- Ne change jamais le nom des lieux.
+- N'ajoute aucune introduction ni conclusion.
+- Réponds uniquement en JSON valide.
 
-Tu dois répondre UNIQUEMENT en JSON valide avec ce format exact, sans texte avant ni après :
+Format attendu :
 {
   "steps": [
-    { "title": "...", "description": "...", "place": "Nom précis du lieu + ville" },
-    { "title": "...", "description": "...", "place": "Nom précis du lieu + ville" },
-    { "title": "...", "description": "...", "place": "Nom précis du lieu + ville" }
+    { "title": "...", "description": "...", "place": "Nom exact du lieu 1" },
+    { "title": "...", "description": "...", "place": "Nom exact du lieu 2" },
+    { "title": "...", "description": "...", "place": "Nom exact du lieu 3" }
   ]
-}
-
-Le champ "place" doit être une adresse ou un nom de lieu suffisamment précis pour être trouvé sur Google Maps (ex: "Cour de l'Hôtel Sandelin, Saint-Omer"). Ne propose aucune introduction ni conclusion.`;
+}`;
 
 type BaladeStep = { title: string; description: string; place?: string };
+type DiscoveredPlace = {
+  name: string;
+  place: string;
+  coord: string;
+  type: string;
+  distanceFromOrigin: number;
+};
 
-const MAX_GENERATION_ATTEMPTS = 4;
+type RouteCandidate = {
+  orderedPoints: DiscoveredPlace[];
+  durationMinutes: number;
+  distanceMeters: number;
+};
 
 const WALKING_SPEED_METERS_PER_MINUTE = 75;
+const MAX_CANDIDATE_PLACES = 8;
+const MAX_COMBINATIONS_TO_TEST = 12;
+const MAX_PERMUTATIONS_PER_COMBINATION = 2;
+
+const jsonResponse = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
+const businessError = (message: string) => jsonResponse({ error: message }, 200);
+
+const normalizePlace = (value: string) => value.trim().toLowerCase();
 
 const permute = <T>(items: T[]): T[][] => {
   if (items.length <= 1) return [items];
@@ -41,6 +63,57 @@ const permute = <T>(items: T[]): T[][] => {
     const remaining = [...items.slice(0, index), ...items.slice(index + 1)];
     return permute(remaining).map((tail) => [item, ...tail]);
   });
+};
+
+const combinationsOfThree = <T>(items: T[]): T[][] => {
+  const combos: T[][] = [];
+  for (let i = 0; i < items.length - 2; i++) {
+    for (let j = i + 1; j < items.length - 1; j++) {
+      for (let k = j + 1; k < items.length; k++) {
+        combos.push([items[i], items[j], items[k]]);
+      }
+    }
+  }
+  return combos;
+};
+
+const parseCoord = (coord: string) => {
+  const [lon, lat] = coord.split(",").map(Number);
+  return { lon, lat };
+};
+
+const haversineMeters = (from: string, to: string) => {
+  const a = parseCoord(from);
+  const b = parseCoord(to);
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const earthRadius = 6371000;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+
+  return 2 * earthRadius * Math.asin(Math.sqrt(h));
+};
+
+const estimateLoopDistance = (origin: string, orderedCoords: string[]) => {
+  let total = 0;
+  let previous = origin;
+
+  for (const coord of orderedCoords) {
+    total += haversineMeters(previous, coord);
+    previous = coord;
+  }
+
+  total += haversineMeters(previous, origin);
+  return total;
+};
+
+const getSafeDurationLimit = (duration: number) => {
+  if (duration <= 20) return Math.max(10, duration - 1);
+  return Math.max(10, duration - 2);
 };
 
 const geocode = async (q: string, context?: string): Promise<{ coord: string; label: string } | null> => {
@@ -87,7 +160,7 @@ const getWalkingRoute = async (coordinates: string[]) => {
 
   return {
     durationMinutes: Math.ceil(route.duration / 60),
-    distanceMeters: route.distance ?? 0,
+    distanceMeters: Math.round(route.distance ?? 0),
   };
 };
 
@@ -95,13 +168,32 @@ const discoverNearbyPlaces = async (
   lat: string,
   lon: string,
   radiusMeters: number,
-  interests: string[]
-): Promise<Array<{ name: string; place: string; coord: string; type: string }>> => {
+  interests: string[],
+  originCoord: string
+): Promise<DiscoveredPlace[]> => {
   const interestFilters: Record<string, string[]> = {
-    nature: ['node(around:R,LAT,LON)["natural"]', 'way(around:R,LAT,LON)["natural"]', 'node(around:R,LAT,LON)["leisure"="park"]', 'way(around:R,LAT,LON)["leisure"="park"]'],
-    architecture: ['node(around:R,LAT,LON)["building"]', 'way(around:R,LAT,LON)["building"]', 'node(around:R,LAT,LON)["historic"]', 'way(around:R,LAT,LON)["historic"]'],
-    streetart: ['node(around:R,LAT,LON)["tourism"="artwork"]', 'way(around:R,LAT,LON)["tourism"="artwork"]'],
-    history: ['node(around:R,LAT,LON)["historic"]', 'way(around:R,LAT,LON)["historic"]', 'node(around:R,LAT,LON)["memorial"]', 'way(around:R,LAT,LON)["memorial"]'],
+    nature: [
+      'node(around:R,LAT,LON)["natural"]',
+      'way(around:R,LAT,LON)["natural"]',
+      'node(around:R,LAT,LON)["leisure"="park"]',
+      'way(around:R,LAT,LON)["leisure"="park"]',
+    ],
+    architecture: [
+      'node(around:R,LAT,LON)["building"]',
+      'way(around:R,LAT,LON)["building"]',
+      'node(around:R,LAT,LON)["historic"]',
+      'way(around:R,LAT,LON)["historic"]',
+    ],
+    streetart: [
+      'node(around:R,LAT,LON)["tourism"="artwork"]',
+      'way(around:R,LAT,LON)["tourism"="artwork"]',
+    ],
+    history: [
+      'node(around:R,LAT,LON)["historic"]',
+      'way(around:R,LAT,LON)["historic"]',
+      'node(around:R,LAT,LON)["memorial"]',
+      'way(around:R,LAT,LON)["memorial"]',
+    ],
   };
 
   const fallbackFilters = [
@@ -121,7 +213,7 @@ const discoverNearbyPlaces = async (
     .map((filter) => filter.replaceAll("R", String(radiusMeters)).replaceAll("LAT", lat).replaceAll("LON", lon))
     .join(";");
 
-  const query = `[out:json][timeout:25];(${selectedFilters};);out center tags 60;`;
+  const query = `[out:json][timeout:20];(${selectedFilters};);out center tags 80;`;
   const response = await fetch("https://overpass-api.de/api/interpreter", {
     method: "POST",
     headers: {
@@ -147,41 +239,58 @@ const discoverNearbyPlaces = async (
 
       if (!name || pointLat == null || pointLon == null) return null;
 
-      const locality = tags["addr:city"] || tags["addr:town"] || tags["addr:village"] || tags["addr:municipality"] || "Longuenesse";
+      const coord = `${pointLon},${pointLat}`;
+      const locality =
+        tags["addr:city"] ||
+        tags["addr:town"] ||
+        tags["addr:village"] ||
+        tags["addr:municipality"] ||
+        "Longuenesse";
+
       return {
         name,
         place: `${name}, ${locality}`,
-        coord: `${pointLon},${pointLat}`,
+        coord,
         type: tags.historic || tags.natural || tags.tourism || tags.amenity || tags.leisure || "lieu",
-      };
+        distanceFromOrigin: Math.round(haversineMeters(originCoord, coord)),
+      } satisfies DiscoveredPlace;
     })
     .filter(Boolean)
-    .filter((place: any, index: number, arr: any[]) => arr.findIndex((item) => item.place === place.place) === index)
-    .slice(0, 12);
+    .filter(
+      (place: any, index: number, arr: any[]) =>
+        arr.findIndex((item) => normalizePlace(item.place) === normalizePlace(place.place)) === index
+    )
+    .sort((a: DiscoveredPlace, b: DiscoveredPlace) => a.distanceFromOrigin - b.distanceFromOrigin)
+    .slice(0, 16);
 };
 
 const discoverNearbyPlacesProgressive = async (
   lat: string,
   lon: string,
   baseRadiusMeters: number,
-  interests: string[]
+  interests: string[],
+  originCoord: string
 ) => {
   const radii = Array.from(
     new Set([
       baseRadiusMeters,
-      Math.round(baseRadiusMeters * 1.5),
-      Math.round(baseRadiusMeters * 2),
-      Math.max(900, Math.round(baseRadiusMeters * 2.5)),
-      1200,
+      Math.round(baseRadiusMeters * 1.35),
+      Math.round(baseRadiusMeters * 1.7),
+      Math.max(700, Math.round(baseRadiusMeters * 2)),
+      1000,
     ])
   ).sort((a, b) => a - b);
 
-  let best: Array<{ name: string; place: string; coord: string; type: string }> = [];
+  let best: DiscoveredPlace[] = [];
 
   for (const radius of radii) {
-    const places = await discoverNearbyPlaces(lat, lon, radius, interests);
-    if (places.length > best.length) best = places;
-    if (places.length >= 3) return places;
+    try {
+      const places = await discoverNearbyPlaces(lat, lon, radius, interests, originCoord);
+      if (places.length > best.length) best = places;
+      if (places.length >= 4) return places;
+    } catch {
+      continue;
+    }
   }
 
   return best;
@@ -198,6 +307,164 @@ const buildGoogleMapsUrl = (origin: string, waypoints: string[]) => {
   return googleMapsUrl.toString();
 };
 
+const buildFallbackSteps = (places: DiscoveredPlace[]): BaladeStep[] =>
+  places.map((place) => ({
+    title: place.name,
+    description: `${place.name} offre une halte piétonne cohérente dans votre boucle découverte. Prenez le temps d'observer les détails du lieu avant de repartir à pied vers l'étape suivante.`,
+    place: place.place,
+  }));
+
+const generateNarrativeSteps = async (
+  places: DiscoveredPlace[],
+  location: string,
+  duration: number,
+  interestText: string,
+  apiKey?: string | null
+): Promise<BaladeStep[]> => {
+  if (!apiKey) {
+    return buildFallbackSteps(places);
+  }
+
+  const userPrompt = [
+    `Point de départ : ${location}`,
+    `Temps total maximum de la boucle : ${duration} minutes à pied`,
+    `Thème : ${interestText}`,
+    `Écris exactement 3 étapes pour ces lieux et dans cet ordre, sans en changer les noms :`,
+    ...places.map((place, index) => `${index + 1}. ${place.place} [${place.type}]`),
+  ].join("\n");
+
+  try {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+
+    if (!response.ok) {
+      return buildFallbackSteps(places);
+    }
+
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    const parsed = JSON.parse(content ?? "{}");
+    const steps = Array.isArray(parsed?.steps) ? parsed.steps.slice(0, 3) : [];
+
+    if (steps.length !== 3) {
+      return buildFallbackSteps(places);
+    }
+
+    const normalizedPlaces = places.map((place) => normalizePlace(place.place));
+    const valid = steps.every((step: BaladeStep, index: number) => {
+      const description = String(step?.description || "").trim();
+      const sentenceCount = description.split(/[.!?]+/).filter((part: string) => part.trim().length > 0).length;
+      return normalizePlace(String(step?.place || "")) === normalizedPlaces[index] && sentenceCount === 2;
+    });
+
+    if (!valid) {
+      return buildFallbackSteps(places);
+    }
+
+    return steps.map((step: BaladeStep, index: number) => ({
+      title: String(step.title || places[index].name).trim() || places[index].name,
+      description: String(step.description || buildFallbackSteps([places[index]])[0].description).trim(),
+      place: places[index].place,
+    }));
+  } catch {
+    return buildFallbackSteps(places);
+  }
+};
+
+const selectBestRoute = async (
+  originCoord: string,
+  nearbyPlaces: DiscoveredPlace[],
+  duration: number
+): Promise<RouteCandidate | null> => {
+  const candidatePlaces = nearbyPlaces.slice(0, Math.min(nearbyPlaces.length, MAX_CANDIDATE_PLACES));
+  if (candidatePlaces.length < 3) return null;
+
+  const safeDurationLimit = getSafeDurationLimit(duration);
+  const targetDistanceMeters = safeDurationLimit * WALKING_SPEED_METERS_PER_MINUTE;
+  const routeCache = new Map<string, { durationMinutes: number; distanceMeters: number }>();
+
+  const combinations = combinationsOfThree(candidatePlaces)
+    .map((combo) => {
+      const rankedOrders = permute(combo)
+        .map((orderedPoints) => ({
+          orderedPoints,
+          estimatedDistance: estimateLoopDistance(
+            originCoord,
+            orderedPoints.map((point) => point.coord)
+          ),
+        }))
+        .filter((entry) => entry.estimatedDistance <= duration * WALKING_SPEED_METERS_PER_MINUTE)
+        .sort(
+          (a, b) =>
+            Math.abs(targetDistanceMeters - a.estimatedDistance) -
+            Math.abs(targetDistanceMeters - b.estimatedDistance)
+        )
+        .slice(0, MAX_PERMUTATIONS_PER_COMBINATION);
+
+      if (rankedOrders.length === 0) return null;
+
+      return {
+        score: Math.abs(targetDistanceMeters - rankedOrders[0].estimatedDistance),
+        rankedOrders,
+      };
+    })
+    .filter(Boolean)
+    .sort((a: any, b: any) => a.score - b.score)
+    .slice(0, MAX_COMBINATIONS_TO_TEST);
+
+  let bestSafeRoute: RouteCandidate | null = null;
+  let bestHardRoute: RouteCandidate | null = null;
+
+  for (const combination of combinations as Array<{ rankedOrders: Array<{ orderedPoints: DiscoveredPlace[] }> }>) {
+    for (const option of combination.rankedOrders) {
+      const routeKey = [originCoord, ...option.orderedPoints.map((point) => point.coord), originCoord].join(";");
+      let measured = routeCache.get(routeKey);
+
+      if (!measured) {
+        measured = await getWalkingRoute([
+          originCoord,
+          ...option.orderedPoints.map((point) => point.coord),
+          originCoord,
+        ]);
+        routeCache.set(routeKey, measured);
+      }
+
+      const candidate: RouteCandidate = {
+        orderedPoints: option.orderedPoints,
+        durationMinutes: measured.durationMinutes,
+        distanceMeters: measured.distanceMeters,
+      };
+
+      if (candidate.durationMinutes <= safeDurationLimit) {
+        if (!bestSafeRoute || candidate.durationMinutes > bestSafeRoute.durationMinutes) {
+          bestSafeRoute = candidate;
+        }
+      }
+
+      if (candidate.durationMinutes <= duration) {
+        if (!bestHardRoute || candidate.durationMinutes > bestHardRoute.durationMinutes) {
+          bestHardRoute = candidate;
+        }
+      }
+    }
+  }
+
+  return bestSafeRoute || bestHardRoute;
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -206,8 +473,17 @@ serve(async (req) => {
   try {
     const { location, duration, interests } = await req.json();
 
+    if (!location || typeof location !== "string") {
+      return businessError("Veuillez indiquer un point de départ valide.");
+    }
+    if (!Number.isFinite(duration) || duration < 15 || duration > 120) {
+      return businessError("Le temps disponible doit être compris entre 15 et 120 minutes.");
+    }
+    if (!Array.isArray(interests) || interests.length === 0) {
+      return businessError("Choisissez au moins un centre d'intérêt.");
+    }
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     const interestLabels: Record<string, string> = {
       architecture: "Architecture",
@@ -224,164 +500,62 @@ serve(async (req) => {
       ? location.split(",").slice(-3).join(",").trim()
       : location;
 
-    const originResolved = await geocode(location);
+    const originResolved = await geocode(location, routeContext);
     if (!originResolved) {
-      return new Response(
-        JSON.stringify({ error: "Impossible de localiser précisément le point de départ." }),
-        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return businessError("Impossible de localiser précisément le point de départ.");
     }
 
-    const maxLoopDistanceMeters = Math.round(duration * WALKING_SPEED_METERS_PER_MINUTE);
-    const maxPointRadiusMeters = Math.max(200, Math.round(maxLoopDistanceMeters / 6));
-    const originLatLng = originResolved.coord.split(",").reverse().join(",");
     const [originLon, originLat] = originResolved.coord.split(",");
-    const nearbyPlaces = await discoverNearbyPlacesProgressive(originLat, originLon, maxPointRadiusMeters, interests as string[]);
+    const originLatLng = `${originLat},${originLon}`;
+    const maxLoopDistanceMeters = Math.round(duration * WALKING_SPEED_METERS_PER_MINUTE);
+    const baseRadiusMeters = Math.max(180, Math.round(maxLoopDistanceMeters / 8));
+
+    const nearbyPlaces = await discoverNearbyPlacesProgressive(
+      originLat,
+      originLon,
+      baseRadiusMeters,
+      interests as string[],
+      originResolved.coord
+    );
 
     if (nearbyPlaces.length < 3) {
-      return new Response(
-        JSON.stringify({ error: `Pas assez de lieux accessibles à pied ont été trouvés autour de cette adresse pour construire une boucle de ${duration} minutes.` }),
-        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      return businessError(
+        `Pas assez de lieux réellement accessibles à pied ont été trouvés autour de cette adresse pour construire une boucle de ${duration} minutes.`
       );
     }
 
-    let finalSteps: BaladeStep[] | null = null;
-    let finalGoogleMapsUrl: string | null = null;
-    let lastMeasuredDuration: number | null = null;
+    const selectedRoute = await selectBestRoute(originResolved.coord, nearbyPlaces, duration);
 
-    for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt++) {
-      const userPrompt = [
-        `Position de départ : ${location}`,
-        `Coordonnées du départ : ${originLatLng}`,
-        `Temps disponible : ${duration} minutes`,
-        `Centres d'intérêt : ${interestText}`,
-        `Tu dois choisir exactement 3 lieux parmi cette liste UNIQUEMENT, sans en inventer d'autres : ${nearbyPlaces.map((place) => `${place.place} [${place.type}]`).join(" ; ")}`,
-        `Contrainte géographique stricte : chaque point proposé doit rester à environ ${maxPointRadiusMeters} mètres maximum du point de départ pour garantir une vraie boucle piétonne.` ,
-        attempt > 0
-          ? `IMPORTANT : ta précédente proposition mesurée faisait ${lastMeasuredDuration ?? "trop"} minutes à pied. Réduis fortement le rayon et propose des lieux nettement plus proches pour garantir une boucle totale de ${duration} minutes maximum à pied.`
-          : null,
-      ]
-        .filter(Boolean)
-        .join("\n");
-
-      const response = await fetch(
-        "https://ai.gateway.lovable.dev/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
-            messages: [
-              { role: "system", content: SYSTEM_PROMPT },
-              { role: "user", content: userPrompt },
-            ],
-            response_format: { type: "json_object" },
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          return new Response(
-            JSON.stringify({ error: "Trop de requêtes, réessayez dans un instant." }),
-            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-        if (response.status === 402) {
-          return new Response(
-            JSON.stringify({ error: "Crédits IA épuisés." }),
-            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-        const t = await response.text();
-        console.error("AI gateway error:", response.status, t);
-        throw new Error("AI gateway error");
-      }
-
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content;
-
-      let parsed: { steps: BaladeStep[] };
-      try {
-        parsed = JSON.parse(content);
-      } catch {
-        console.error("Failed to parse AI response:", content);
-        throw new Error("Invalid AI response format");
-      }
-
-      const steps = Array.isArray(parsed.steps) ? parsed.steps.slice(0, 3) : [];
-      if (steps.length !== 3) {
-        continue;
-      }
-
-      const resolvedWaypoints = steps.map((step) => {
-        const normalizedPlace = (step.place || "").trim().toLowerCase();
-        return nearbyPlaces.find((candidate) => candidate.place.toLowerCase() === normalizedPlace);
-      });
-
-      if (resolvedWaypoints.some((point) => !point)) {
-        continue;
-      }
-
-      const waypointCandidates = steps.map((step, index) => ({
-        step,
-        point: resolvedWaypoints[index] as { coord: string; place: string; name: string },
-      }));
-
-      let bestRoute:
-        | {
-            orderedSteps: BaladeStep[];
-            orderedPoints: Array<{ coord: string; label: string }>;
-            durationMinutes: number;
-          }
-        | null = null;
-
-      for (const orderedWaypoints of permute(waypointCandidates)) {
-        const walkingRoute = await getWalkingRoute([
-          originResolved.coord,
-          ...orderedWaypoints.map((entry) => entry.point.coord),
-          originResolved.coord,
-        ]);
-
-        if (!bestRoute || walkingRoute.durationMinutes < bestRoute.durationMinutes) {
-          bestRoute = {
-            orderedSteps: orderedWaypoints.map((entry) => entry.step),
-            orderedPoints: orderedWaypoints.map((entry) => entry.point),
-            durationMinutes: walkingRoute.durationMinutes,
-          };
-        }
-      }
-
-      lastMeasuredDuration = bestRoute?.durationMinutes ?? lastMeasuredDuration;
-
-      if (bestRoute && bestRoute.durationMinutes <= duration) {
-        finalSteps = bestRoute.orderedSteps;
-        finalGoogleMapsUrl = buildGoogleMapsUrl(
-          originLatLng,
-          bestRoute.orderedPoints.map((point) => point.coord.split(",").reverse().join(","))
-        );
-        break;
-      }
-    }
-
-    if (!finalSteps || !finalGoogleMapsUrl) {
-      return new Response(
-        JSON.stringify({ error: `Impossible de garantir une boucle à pied de ${duration} minutes maximum depuis cette adresse. Essayez un temps plus long ou une adresse plus centrale.` }),
-        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    if (!selectedRoute) {
+      return businessError(
+        `Impossible de garantir un trajet Google Maps à pied dans ${duration} minutes maximum depuis cette adresse. Essayez une adresse plus centrale ou un temps plus long.`
       );
     }
 
-    return new Response(JSON.stringify({ steps: finalSteps, google_maps_url: finalGoogleMapsUrl }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const steps = await generateNarrativeSteps(
+      selectedRoute.orderedPoints,
+      location,
+      duration,
+      interestText,
+      LOVABLE_API_KEY
+    );
+
+    const googleMapsUrl = buildGoogleMapsUrl(
+      originLatLng,
+      selectedRoute.orderedPoints.map((point) => point.coord.split(",").reverse().join(","))
+    );
+
+    return jsonResponse({
+      steps,
+      google_maps_url: googleMapsUrl,
+      walking_minutes: selectedRoute.durationMinutes,
+      walking_distance_meters: selectedRoute.distanceMeters,
     });
   } catch (e) {
     console.error("generate-balade error:", e);
-    return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    return jsonResponse(
+      { error: e instanceof Error ? e.message : "Unknown error" },
+      500
     );
   }
 });
