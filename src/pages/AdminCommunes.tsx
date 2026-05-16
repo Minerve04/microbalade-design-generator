@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -154,24 +154,46 @@ const AdminCommunes = () => {
     setCommunes((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   };
 
-  const exportStatsToExcel = () => {
-    const rows = stats.map((s) => ({
-      Date: new Date(s.created_at).toLocaleString("fr-FR"),
-      Ville: s.ville ?? "",
-      "Code postal": s.code_postal ?? "",
-      "Durée (min)": s.duree_minutes ?? "",
-      "Adresse de départ": s.origin_address ?? "",
-      Thèmes: (s.themes ?? []).join(", "),
-      Monuments: (s.monuments ?? []).join(" | "),
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Statistiques");
+  const exportStatsToExcel = async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Statistiques");
+    ws.columns = [
+      { header: "Date", key: "date", width: 20 },
+      { header: "Ville", key: "ville", width: 20 },
+      { header: "Code postal", key: "cp", width: 12 },
+      { header: "Durée (min)", key: "duree", width: 12 },
+      { header: "Adresse de départ", key: "addr", width: 40 },
+      { header: "Thèmes", key: "themes", width: 30 },
+      { header: "Monuments", key: "monuments", width: 60 },
+    ];
+    ws.getRow(1).font = { bold: true };
+    stats.forEach((s) => {
+      ws.addRow({
+        date: new Date(s.created_at).toLocaleString("fr-FR"),
+        ville: s.ville ?? "",
+        cp: s.code_postal ?? "",
+        duree: s.duree_minutes ?? "",
+        addr: s.origin_address ?? "",
+        themes: (s.themes ?? []).join(", "),
+        monuments: (s.monuments ?? []).join(" | "),
+      });
+    });
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
     const suffix =
       filterCommune !== "all"
         ? `_${communes.find((c) => c.code_postal === filterCommune)?.nom ?? filterCommune}`
         : "";
-    XLSX.writeFile(wb, `microbalade_statistiques${suffix}.xlsx`);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `microbalade_statistiques${suffix}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   if (!authed) {
