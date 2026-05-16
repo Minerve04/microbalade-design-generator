@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import logo from "@/assets/logo.png";
 import { MapPin, Loader2, LocateFixed } from "lucide-react";
@@ -22,6 +22,49 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
   const [duration, setDuration] = useState(30);
   const [selected, setSelected] = useState<string[]>([]);
   const [geoLoading, setGeoLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState<Array<{ display_name: string }>>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const skipNextFetch = useRef(false);
+
+  useEffect(() => {
+    if (skipNextFetch.current) {
+      skipNextFetch.current = false;
+      return;
+    }
+    if (location.trim().length < 3) {
+      setSuggestions([]);
+      return;
+    }
+    const ctrl = new AbortController();
+    const timer = setTimeout(async () => {
+      setSuggestLoading(true);
+      try {
+        const r = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&limit=5&addressdetails=1&accept-language=fr&q=${encodeURIComponent(location)}`,
+          { signal: ctrl.signal }
+        );
+        const data = await r.json();
+        setSuggestions(Array.isArray(data) ? data : []);
+        setShowSuggestions(true);
+      } catch {
+        // ignore
+      } finally {
+        setSuggestLoading(false);
+      }
+    }, 350);
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
+  }, [location]);
+
+  const selectSuggestion = (name: string) => {
+    skipNextFetch.current = true;
+    setLocation(name);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
 
   const handleGeolocate = () => {
     if (!navigator.geolocation) {
@@ -41,6 +84,7 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
             data.address?.road,
             data.address?.city || data.address?.town || data.address?.village,
           ].filter(Boolean);
+          skipNextFetch.current = true;
           setLocation(parts.join(", ") || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
         } catch {
           setLocation(`${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`);
@@ -93,14 +137,37 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
           </label>
           <div className="relative flex gap-2">
             <div className="relative flex-1">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-primary" size={20} />
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-primary z-10" size={20} />
               <input
                 type="text"
                 placeholder="Où êtes-vous ?"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                className="w-full bg-secondary rounded-xl pl-11 pr-4 py-3.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-sm"
+                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                autoComplete="off"
+                className="w-full bg-secondary rounded-xl pl-11 pr-9 py-3.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-sm"
               />
+              {suggestLoading && (
+                <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground animate-spin" />
+              )}
+              {showSuggestions && suggestions.length > 0 && (
+                <ul className="absolute left-0 right-0 top-full mt-2 bg-popover border border-border rounded-xl shadow-lg overflow-hidden z-20 max-h-64 overflow-y-auto">
+                  {suggestions.map((s, i) => (
+                    <li key={i}>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => selectSuggestion(s.display_name)}
+                        className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-secondary transition-colors flex items-start gap-2"
+                      >
+                        <MapPin size={14} className="text-primary mt-0.5 shrink-0" />
+                        <span className="line-clamp-2">{s.display_name}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
             <button
               type="button"
