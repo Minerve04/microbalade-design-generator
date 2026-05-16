@@ -41,9 +41,8 @@ const benefits = [
   },
   {
     icon: Store,
-    title: "Redirection vers les commerces",
-    description:
-      "Intégrez les artisans, restaurants et boutiques locales dans les itinéraires. Microbalade devient un véritable levier économique pour dynamiser votre centre-ville.",
+    title: "Zéro infrastructure\nZéro maintenance\nZéro publicité\n",
+    description: "​",
   },
 ];
 
