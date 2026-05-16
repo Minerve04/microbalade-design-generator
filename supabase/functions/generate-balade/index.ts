@@ -29,7 +29,8 @@ const corsHeaders = {
 
 type BaladeStep = { title: string; description: string; place?: string };
 type Waypoint = { coord: string; label: string };
-type RouteMeasurement = { durationMinutes: number; distanceMeters: number };
+type RouteGeometryPoint = [number, number];
+type RouteMeasurement = { durationMinutes: number; distanceMeters: number; overlapRatio: number };
 
 // Google Maps walking pace ≈ 5 km/h ≈ 83 m/min. We align on Google's pace so that
 // what we promise matches what the user sees in Google Maps.
@@ -38,6 +39,10 @@ const ORIGIN_SEARCH_TIMEOUT_MS = 3500;
 const REVERSE_GEOCODE_TIMEOUT_MS = 1800;
 const ROUTE_TIMEOUT_MS = 5000;
 const AI_TIMEOUT_MS = 25000;
+const MAX_ACCEPTABLE_OVERLAP_RATIO = 0.18;
+const MAX_FALLBACK_OVERLAP_RATIO = 0.32;
+const MIN_DISTINCT_ROADS = 3;
+const MAX_WAYPOINTS_ON_ORIGIN_ROAD = 1;
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -93,7 +98,7 @@ const reverseGeocode = async (coord: string, fallbackLabel: string) => {
   try {
     const { lat, lon } = parseCoord(coord);
     const response = await fetchWithTimeout(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=fr`,
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=fr&addressdetails=1`,
       { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } },
       REVERSE_GEOCODE_TIMEOUT_MS
     );
@@ -129,12 +134,91 @@ const reverseGeocodeDetails = async (coord: string): Promise<{ postcode?: string
   }
 };
 
+const reverseGeocodeRoadName = async (coord: string): Promise<string | null> => {
+  try {
+    const { lat, lon } = parseCoord(coord);
+    const response = await fetchWithTimeout(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=fr&addressdetails=1`,
+      { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } },
+      REVERSE_GEOCODE_TIMEOUT_MS
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    const address = data?.address || {};
+    return (
+      address.road ||
+      address.pedestrian ||
+      address.footway ||
+      address.cycleway ||
+      address.path ||
+      address.neighbourhood ||
+      address.suburb ||
+      null
+    );
+  } catch {
+    return null;
+  }
+};
+
+const normalizeRoadName = (value: string | null | undefined) =>
+  (value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const getSegmentKey = (a: RouteGeometryPoint, b: RouteGeometryPoint) => {
+  const pointA = `${a[0].toFixed(5)},${a[1].toFixed(5)}`;
+  const pointB = `${b[0].toFixed(5)},${b[1].toFixed(5)}`;
+  return pointA <= pointB ? `${pointA}|${pointB}` : `${pointB}|${pointA}`;
+};
+
+const getSegmentDistanceMeters = (a: RouteGeometryPoint, b: RouteGeometryPoint) => {
+  const [lon1, lat1] = a;
+  const [lon2, lat2] = b;
+  const earthRadius = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const lat1Rad = (lat1 * Math.PI) / 180;
+  const lat2Rad = (lat2 * Math.PI) / 180;
+  const haversine =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1Rad) * Math.cos(lat2Rad) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return 2 * earthRadius * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+};
+
+const computeOverlapRatio = (geometry: RouteGeometryPoint[]) => {
+  if (geometry.length < 2) return 1;
+
+  let totalDistance = 0;
+  let repeatedDistance = 0;
+  const seenSegments = new Set<string>();
+
+  for (let index = 0; index < geometry.length - 1; index += 1) {
+    const segmentStart = geometry[index];
+    const segmentEnd = geometry[index + 1];
+    const segmentDistance = getSegmentDistanceMeters(segmentStart, segmentEnd);
+    if (segmentDistance < 2) continue;
+
+    totalDistance += segmentDistance;
+    const segmentKey = getSegmentKey(segmentStart, segmentEnd);
+    if (seenSegments.has(segmentKey)) {
+      repeatedDistance += segmentDistance;
+    } else {
+      seenSegments.add(segmentKey);
+    }
+  }
+
+  return totalDistance > 0 ? repeatedDistance / totalDistance : 1;
+};
+
 // Measure real walking route via OSRM (foot profile). We trust the DISTANCE, not the
 // duration: the OSRM demo's foot speed is optimistic vs Google Maps. We recompute
 // the time from the distance with a Google-equivalent pace so the promised duration
 // matches what the user will actually see in Google Maps.
 const getWalkingRoute = async (coordinates: string[]): Promise<RouteMeasurement> => {
-  const url = `https://router.project-osrm.org/route/v1/foot/${coordinates.join(";")}?overview=false&steps=false`;
+  const url = `https://router.project-osrm.org/route/v1/foot/${coordinates.join(";")}?overview=full&geometries=geojson&steps=false`;
   const response = await fetchWithTimeout(
     url,
     { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } },
@@ -147,7 +231,15 @@ const getWalkingRoute = async (coordinates: string[]): Promise<RouteMeasurement>
 
   const distanceMeters = Math.round(route.distance);
   const durationMinutes = Math.round(distanceMeters / EFFECTIVE_WALKING_SPEED_M_PER_MIN);
-  return { durationMinutes, distanceMeters };
+  const geometry = Array.isArray(route.geometry?.coordinates)
+    ? (route.geometry.coordinates as RouteGeometryPoint[])
+    : [];
+
+  return {
+    durationMinutes,
+    distanceMeters,
+    overlapRatio: computeOverlapRatio(geometry),
+  };
 };
 
 const offsetCoordinate = (coord: string, distanceMeters: number, bearingDegrees: number) => {
