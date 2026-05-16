@@ -356,6 +356,9 @@ serve(async (req) => {
 
     let bestWithinSafe: { coords: string[]; route: RouteMeasurement } | null = null;
     let bestWithinHard: { coords: string[]; route: RouteMeasurement } | null = null;
+    let evaluated = 0;
+    let succeeded = 0;
+    let minDuration = Infinity;
 
     // Evaluate candidates in parallel chunks (faster) with early exit once we have
     // a result close to the safe budget.
@@ -370,8 +373,11 @@ serve(async (req) => {
         )
       );
       for (const r of results) {
+        evaluated++;
         if (r.status !== "fulfilled") continue;
+        succeeded++;
         const { loop, route } = r.value;
+        if (route.durationMinutes < minDuration) minDuration = route.durationMinutes;
         if (route.durationMinutes <= safeLimit) {
           if (!bestWithinSafe || route.durationMinutes > bestWithinSafe.route.durationMinutes) {
             bestWithinSafe = { coords: loop, route };
@@ -386,6 +392,10 @@ serve(async (req) => {
       // Early exit when we have a result already filling at least 80% of the safe budget.
       if (bestWithinSafe && bestWithinSafe.route.durationMinutes >= safeLimit * 0.8) break;
     }
+
+    console.log(
+      `[generate-balade] origin=${originResolved.coord} duration=${duration} safeLimit=${safeLimit} loops=${loops.length} evaluated=${evaluated} ok=${succeeded} minDuration=${minDuration}`
+    );
 
     const selected = bestWithinSafe || bestWithinHard;
     if (!selected) {
