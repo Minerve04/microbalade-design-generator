@@ -2,3 +2,6 @@ project_id = "jeceuubezficfxwzejsr"
 
 [functions.generate-balade]
 verify_jwt = false
+
+[functions.admin-communes]
+verify_jwt = false
