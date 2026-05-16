@@ -520,14 +520,14 @@ export default function CommuneDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {searches.length === 0 && (
+                      {filtered.length === 0 && (
                         <tr>
                           <td colSpan={4} className="text-center py-10 text-muted-foreground text-sm">
-                            Aucune recherche enregistrée pour l'instant.
+                            Aucune recherche sur la période sélectionnée.
                           </td>
                         </tr>
                       )}
-                      {searches.map((s) => (
+                      {filtered.map((s) => (
                         <tr key={s.id} className="hover:bg-muted/30">
                           <td className="px-5 py-3 text-foreground">
                             {new Date(s.created_at).toLocaleDateString("fr-FR")}
