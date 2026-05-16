@@ -174,7 +174,7 @@ const Partners = () => {
                 <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
                   <b.icon size={22} />
                 </div>
-                <h3 className="text-lg font-semibold text-foreground">{b.title}</h3>
+                <h3 className="text-lg font-semibold text-foreground whitespace-pre-line">{b.title}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">{b.description}</p>
               </motion.article>
             ))}
