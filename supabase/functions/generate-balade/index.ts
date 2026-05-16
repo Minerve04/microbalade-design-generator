@@ -473,16 +473,17 @@ serve(async (req) => {
       return businessError("Impossible de localiser précisément le point de départ.");
     }
 
-    const safeLimit = getSafeDurationLimit(duration);
     const loops = createCandidateLoops(originResolved.coord, duration);
 
     const minAcceptable = getMinAcceptableDuration(duration);
+    const originRoadName = normalizeRoadName(await reverseGeocodeRoadName(originResolved.coord));
 
     // Pick the candidate whose measured duration is CLOSEST to the requested duration
     // (without exceeding it). We evaluate ALL candidates — no early exit — so a tiny
     // 15-min loop never wins over a true 29-min loop for a 30-min request.
     let bestCloseToTarget: { coords: string[]; route: RouteMeasurement } | null = null;
     let bestWithinHard: { coords: string[]; route: RouteMeasurement } | null = null;
+    let bestLowOverlap: { coords: string[]; route: RouteMeasurement } | null = null;
 
     const CHUNK = 8;
     for (let i = 0; i < loops.length; i += CHUNK) {
@@ -497,12 +498,45 @@ serve(async (req) => {
       for (const r of results) {
         if (r.status !== "fulfilled") continue;
         const { loop, route } = r.value;
+        const roadNames = await Promise.all(loop.map((coord) => reverseGeocodeRoadName(coord)));
+        const normalizedRoads = roadNames.map(normalizeRoadName).filter(Boolean);
+        const distinctRoadCount = new Set(normalizedRoads).size;
+        const waypointsOnOriginRoad = normalizedRoads.filter((road) => road === originRoadName).length;
+        const isCleanLoop =
+          distinctRoadCount >= MIN_DISTINCT_ROADS &&
+          waypointsOnOriginRoad <= MAX_WAYPOINTS_ON_ORIGIN_ROAD &&
+          route.overlapRatio <= MAX_ACCEPTABLE_OVERLAP_RATIO;
+
         if (route.durationMinutes <= duration) {
-          if (!bestWithinHard || route.durationMinutes > bestWithinHard.route.durationMinutes) {
+          const isBetterFallback =
+            route.overlapRatio <= MAX_FALLBACK_OVERLAP_RATIO &&
+            distinctRoadCount >= 2 &&
+            waypointsOnOriginRoad <= 1 &&
+            (!bestLowOverlap ||
+              route.durationMinutes > bestLowOverlap.route.durationMinutes ||
+              (route.durationMinutes === bestLowOverlap.route.durationMinutes &&
+                route.overlapRatio < bestLowOverlap.route.overlapRatio));
+
+          if (isBetterFallback) {
+            bestLowOverlap = { coords: loop, route };
+          }
+
+          if (
+            isCleanLoop &&
+            (!bestWithinHard ||
+              route.durationMinutes > bestWithinHard.route.durationMinutes ||
+              (route.durationMinutes === bestWithinHard.route.durationMinutes &&
+                route.overlapRatio < bestWithinHard.route.overlapRatio))
+          ) {
             bestWithinHard = { coords: loop, route };
           }
-          if (route.durationMinutes >= minAcceptable) {
-            if (!bestCloseToTarget || route.durationMinutes > bestCloseToTarget.route.durationMinutes) {
+          if (isCleanLoop && route.durationMinutes >= minAcceptable) {
+            if (
+              !bestCloseToTarget ||
+              route.durationMinutes > bestCloseToTarget.route.durationMinutes ||
+              (route.durationMinutes === bestCloseToTarget.route.durationMinutes &&
+                route.overlapRatio < bestCloseToTarget.route.overlapRatio)
+            ) {
               bestCloseToTarget = { coords: loop, route };
             }
           }
@@ -510,15 +544,13 @@ serve(async (req) => {
       }
     }
 
-    // Prefer a loop close to the target. Otherwise, fall back to the best smaller
-    // loop we could measure — we'll honestly report its real duration in the UI
-    // (the previous bug was showing "30 min" for a 1-min loop; that's fixed by
-    // returning walking_minutes from the actual OSRM measurement). A short loop
-    // is always better than refusing the user.
-    const selected = bestCloseToTarget || bestWithinHard;
+    // Prefer a clean loop close to target, then a clean shorter loop, then a last
+    // low-overlap fallback. If none survives those filters, refuse instead of
+    // returning a fake "boucle" that is really an out-and-back on the same street.
+    const selected = bestCloseToTarget || bestWithinHard || bestLowOverlap;
     if (!selected) {
       return businessError(
-        `Impossible de tracer une boucle à pied depuis cette adresse. Essayez une adresse un peu plus précise ou plus proche d'une voie carrossable.`
+        `Impossible de tracer une vraie boucle à pied satisfaisante depuis cette adresse sans repasser sur ses pas. Essayez un autre point de départ proche ou une durée légèrement plus longue.`
       );
     }
 
