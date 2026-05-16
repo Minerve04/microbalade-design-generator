@@ -21,6 +21,8 @@ import {
 import { toast } from "sonner";
 import {
   ResponsiveContainer,
+  BarChart,
+  Bar,
   AreaChart,
   Area,
   XAxis,
