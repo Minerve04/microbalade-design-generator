@@ -62,9 +62,39 @@ const AdminCommunes = () => {
     const { data, error } = await supabase.functions.invoke("admin-communes", {
       body: { password, action, payload },
     });
-    if (error) throw error;
+    // When the edge function returns a non-2xx response, supabase-js sets `error`
+    // (FunctionsHttpError) but the body containing our real error message is on
+    // `error.context.response`. We extract it so the user sees the real reason
+    // (e.g. "Image trop volumineuse") instead of a generic "non-2xx status code".
+    if (error) {
+      try {
+        const resp: Response | undefined = (error as any)?.context?.response;
+        if (resp) {
+          const body = await resp.clone().json().catch(() => null);
+          if (body?.error) throw new Error(body.error);
+        }
+      } catch (e: any) {
+        if (e?.message) throw e;
+      }
+      throw error;
+    }
     if ((data as any)?.error) throw new Error((data as any).error);
     return data as any;
+  };
+
+  // Auto-fill commune name from postcode using the official French geo API.
+  const lookupCommuneByPostcode = async (cp: string): Promise<string | null> => {
+    if (!/^\d{5}$/.test(cp)) return null;
+    try {
+      const r = await fetch(
+        `https://geo.api.gouv.fr/communes?codePostal=${cp}&fields=nom&format=json`
+      );
+      if (!r.ok) return null;
+      const arr = await r.json();
+      return Array.isArray(arr) && arr[0]?.nom ? arr[0].nom : null;
+    } catch {
+      return null;
+    }
   };
 
   const load = async () => {
@@ -241,6 +271,11 @@ const AdminCommunes = () => {
                 <Input
                   value={form.code_postal}
                   onChange={(e) => setForm({ ...form, code_postal: e.target.value })}
+                  onBlur={async () => {
+                    if (form.nom || !/^\d{5}$/.test(form.code_postal)) return;
+                    const nom = await lookupCommuneByPostcode(form.code_postal);
+                    if (nom) setForm((prev) => (prev.nom ? prev : { ...prev, nom }));
+                  }}
                 />
               </div>
               <div className="sm:col-span-2">
