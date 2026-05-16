@@ -33,6 +33,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommuneSubscription } from "@/hooks/useCommuneSubscription";
+import { AlertTriangle, Lock } from "lucide-react";
 import { getStripeEnvironment } from "@/lib/stripe";
 import logo from "@/assets/logo.png";
 
