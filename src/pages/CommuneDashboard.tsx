@@ -56,6 +56,7 @@ interface SearchRow {
   origin_address: string | null;
   duree_minutes: number | null;
   themes: string[] | null;
+  monuments: string[] | null;
 }
 
 const NAV: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
@@ -65,18 +66,16 @@ const NAV: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "profile", label: "Profil & Facturation", icon: UserCircle2 },
 ];
 
-const monthlyData = [
-  { month: "Janv.", balades: 80 },
-  { month: "Févr.", balades: 95 },
-  { month: "Mars", balades: 120 },
-  { month: "Avr.", balades: 280 },
-  { month: "Mai", balades: 450 },
-];
-
 const fakeInvoices = [
   { id: "F-2025-05", date: "01/05/2025", amount: 600, label: "Abonnement annuel 2025" },
   { id: "F-2024-05", date: "01/05/2024", amount: 600, label: "Abonnement annuel 2024" },
 ];
+
+const MONTHS_FR = ["Janv.", "Févr.", "Mars", "Avr.", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc."];
+
+function toInputDate(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
 
 export default function CommuneDashboard() {
   const navigate = useNavigate();
