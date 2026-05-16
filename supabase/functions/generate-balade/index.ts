@@ -378,7 +378,7 @@ const buildAiPrompt = (
   const interestsHuman = interests.map((i) => INTEREST_LABELS[i] || i).join(", ");
   const stepsList = waypointLabels.map((label, i) => `${i + 1}. ${label}`).join("\n");
   const cityLine = city ? `Ville : ${city}\n` : "";
-  return `Tu es l'auteur d'un guide touristique haut de gamme (style Routard / Lonely Planet / Guide Vert) spécialisé sur ${city || "cette ville"}. Tu connais finement son histoire, ses personnages, ses légendes, son patrimoine, ses commerces emblématiques, son architecture et ses anecdotes. Tu écris pour un promeneur qui découvre le quartier à pied, là, maintenant, et que tu veux ÉMERVEILLER.
+  return `Tu es un guide local érudit de ${city || "cette ville"} — historien de quartier, passionné de patrimoine, capable de raconter une rue comme un habitant qui y vit depuis 40 ans. Tu écris pour un promeneur qui veut apprendre quelque chose de PRÉCIS et de VRAI à chaque étape, pas être flatté avec des phrases d'agence touristique.
 
 Départ : ${originLabel}
 ${cityLine}Durée mesurée : ${walkingMinutes} minutes à pied
@@ -387,18 +387,33 @@ Centres d'intérêt du promeneur : ${interestsHuman}
 Étapes RÉELLES de la boucle (noms de rues/lieux extraits de l'itinéraire, dans l'ordre) :
 ${stepsList}
 
-Pour CHAQUE étape, écris un mini-paragraphe de 3 à 4 phrases, en français soigné, qui ressemble à une notice de guide touristique :
-- Nomme explicitement la rue / le lieu fourni.
-- Décris ce qu'on voit concrètement à cet endroit (architecture, perspective, matériaux, commerces typiques, ambiance sonore ou olfactive).
-- Glisse au moins UNE anecdote, fait historique, légende locale, étymologie du nom, personnage célèbre, événement, métier disparu, particularité du bâti ou détail patrimonial lié à CETTE rue, ce quartier ou ${city || "cette ville"}.
-- Signale au promeneur un détail précis à observer (sculpture, plaque, vestige, enseigne, fresque, point de vue) qui crée l'effet "waouh".
+═══ EXIGENCE N°1 — PRÉCISION CULTURELLE (PRIORITAIRE) ═══
 
-Règles strictes :
-- Aucune phrase creuse ni formule passe-partout (interdits : "ouvrez l'œil", "laissez la cadence", "ce pivot relie deux ambiances", "gardez les yeux levés"...).
-- Si tu n'as pas d'anecdote vérifiée précise, propose une lecture experte et plausible du lieu (typologie urbaine, période architecturale, fonction historique probable) — jamais d'invention factuelle datée ou nominale.
-- Pas d'introduction, pas de conclusion, pas de listes à puces, pas de titre, pas d'emoji.
-- Varie le ton et les angles entre les 3 étapes.
-- Réponds STRICTEMENT en JSON valide :
+Pour CHAQUE étape, écris un mini-paragraphe de 3 à 4 phrases qui DOIT contenir, autant que le lieu le permet :
+1. Le nom explicite de la rue ou du lieu fourni.
+2. Une DATATION précise : siècle de construction, époque (médiévale, XVIIIᵉ, fin XIXᵉ industriel, reconstruction d'après-guerre, années 1930…). Pas "ancien" ni "historique" tout court.
+3. Un STYLE ARCHITECTURAL nommé avec ses mots techniques : gothique flamboyant, roman, néo-classique, art déco, brique rouge flamande, pan-de-bois, façade haussmannienne, hôtel particulier, reconstruction Pingusson, etc. — jamais "belle architecture" ou "joli bâtiment".
+4. Une ANECDOTE concrète et localisée : fait historique daté, légende, étymologie du nom de rue, personnage qui y a vécu, métier disparu qui s'y exerçait, événement, fonction d'origine du bâti, particularité peu connue. Quelque chose qu'un touriste ne pourrait PAS deviner seul.
+5. Un détail observable précis à pointer (sculpture, plaque, modillon, enseigne ancienne, marque de crue, vestige, perspective) pour ancrer le récit dans le réel visible.
+
+INTERDICTIONS ABSOLUES (ces formules sont bannies, et toute variante équivalente l'est aussi) :
+"Découvrez…", "Admirez…", "Magnifique", "Splendide", "Charmant", "Pittoresque", "Authentique", "Ne manquez pas", "Laissez-vous porter", "Laissez la cadence", "Ouvrez l'œil", "Gardez les yeux levés", "Plongez dans…", "Au cœur de…", "Véritable joyau", "Incontournable", "Magnifique église", "Belle architecture", "Riche histoire", "Ambiance unique", "Ce pivot relie deux ambiances".
+
+Règle anti-invention : si tu n'as PAS d'anecdote vérifiée pour CE lieu précis, fais une lecture experte typologique (ex. "la brique jaune et les linteaux métalliques trahissent une construction de la fin du XIXᵉ liée à l'essor ferroviaire local") — mais N'INVENTE JAMAIS un nom propre, une date précise, un événement nommé, un personnage ou une citation.
+
+═══ EXIGENCE N°2 — SÉCURITÉ ET CONFORT PIÉTON (ZONES RURALES / PÉRIURBAINES) ═══
+
+Si l'étape se situe en zone rurale, périurbaine ou village (peu de bâti dense), tu DOIS :
+- Valoriser et nommer les axes calmes empruntés : sentiers de randonnée balisés (GR, PR), voies vertes, chemins communaux, rues résidentielles, chemins ruraux, sentes.
+- Si une étape passe à proximité ou sur une route départementale (RD), route nationale, ou un axe passant SANS trottoir continu, AVERTIR brièvement et explicitement le promeneur (ex. "prudence : la D928 n'a pas de trottoir sur ce tronçon, marchez bien à gauche face à la circulation") et, si possible, suggérer une alternative visible (trottoir opposé, accotement enherbé, sente parallèle).
+- Ne jamais valoriser une portion bruyante ou dangereuse comme si elle était agréable. Honnêteté avant marketing.
+- Ton bienveillant et discret, pas anxiogène.
+
+═══ FORMAT DE SORTIE ═══
+
+- Pas d'introduction, pas de conclusion, pas de titre, pas de liste à puces, pas d'emoji.
+- Varie réellement le ton, l'angle et la structure entre les 3 étapes (une plus historique, une plus architecturale, une plus sensorielle/urbaine).
+- Réponds STRICTEMENT en JSON valide, sans texte avant ni après :
 {"steps":[{"description":"..."},{"description":"..."},{"description":"..."}]}`;
 };
 
