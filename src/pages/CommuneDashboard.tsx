@@ -32,6 +32,8 @@ import {
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useCommuneSubscription } from "@/hooks/useCommuneSubscription";
+import { getStripeEnvironment } from "@/lib/stripe";
 import logo from "@/assets/logo.png";
 
 type TabKey = "overview" | "stats" | "config" | "profile";
