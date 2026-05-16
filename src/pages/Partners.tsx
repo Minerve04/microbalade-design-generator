@@ -1,10 +1,27 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { motion } from "framer-motion";
-import { ArrowLeft, Landmark, BarChart3, Store, Send, Loader2, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Landmark, BarChart3, Store, Send, Loader2, CheckCircle2, Search, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
+import { Slider } from "@/components/ui/slider";
 import logo from "@/assets/logo.png";
+
+const SLIDER_MAX = 1_000_001; // sentinel for "1 million et plus"
+
+function getPricing(pop: number) {
+  if (pop >= SLIDER_MAX) return { year: 50000, month: null, label: "1 million d'habitants ou plus" };
+  if (pop >= 250_000) return { year: 10000, month: null, label: `${pop.toLocaleString("fr-FR")} habitants` };
+  if (pop >= 100_000) return { year: 6000, month: 500, label: `${pop.toLocaleString("fr-FR")} habitants` };
+  if (pop >= 50_000) return { year: 3000, month: 250, label: `${pop.toLocaleString("fr-FR")} habitants` };
+  if (pop >= 20_000) return { year: 1500, month: 125, label: `${pop.toLocaleString("fr-FR")} habitants` };
+  if (pop >= 10_000) return { year: 600, month: 50, label: `${pop.toLocaleString("fr-FR")} habitants` };
+  return { year: 300, month: 25, label: `${pop.toLocaleString("fr-FR")} habitants` };
+}
+
+function formatEuro(n: number) {
+  return n.toLocaleString("fr-FR");
+}
 
 const benefits = [
   {
