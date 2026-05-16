@@ -488,7 +488,7 @@ export default function CommuneDashboard() {
                 <div className="flex items-center gap-3">
                   <span
                     className={`h-2.5 w-2.5 rounded-full ${
-                      isActive ? "bg-emerald-500" : "bg-destructive"
+                      isPendingMandat ? "bg-amber-500" : isActive ? "bg-emerald-500" : "bg-destructive"
                     }`}
                   />
                   <div>
@@ -496,7 +496,7 @@ export default function CommuneDashboard() {
                       Statut de l'abonnement
                     </div>
                     <div className="text-lg font-extrabold text-foreground">
-                      {isActive ? "Actif" : "Inactif — paiement requis"}
+                      {isPendingMandat ? "Actif — règlement Chorus en attente" : isActive ? "Actif" : "Inactif — paiement requis"}
                     </div>
                     <div className="text-sm text-muted-foreground mt-0.5">
                       Formule : <span className="font-semibold text-foreground">{profile?.abonnement_label ?? "—"}</span>
@@ -505,12 +505,20 @@ export default function CommuneDashboard() {
                   </div>
                 </div>
                 {!isActive ? (
-                  <button
-                    onClick={handlePay}
-                    className="shrink-0 inline-flex items-center justify-center bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:opacity-90 transition"
-                  >
-                    Payer mon abonnement
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+                    <button
+                      onClick={() => setChorusOpen(true)}
+                      className="inline-flex items-center justify-center gap-1.5 bg-secondary text-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:bg-secondary/80 transition border border-border"
+                    >
+                      <FileTextIcon size={16} /> Bon de commande
+                    </button>
+                    <button
+                      onClick={handlePay}
+                      className="inline-flex items-center justify-center bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:opacity-90 transition"
+                    >
+                      Payer par carte
+                    </button>
+                  </div>
                 ) : (
                   <button
                     onClick={() => setTab("profile")}
