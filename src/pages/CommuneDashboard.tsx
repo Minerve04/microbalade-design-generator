@@ -300,21 +300,31 @@ export default function CommuneDashboard() {
           {NAV.map((n) => {
             const Icon = n.icon;
             const active = tab === n.key;
+            const isLockedTab = locked && n.key !== "profile";
             return (
               <button
                 key={n.key}
                 onClick={() => {
+                  if (isLockedTab) {
+                    toast.error("Abonnement suspendu — régularisez le paiement pour réactiver cet onglet.");
+                    setTab("profile");
+                    setSidebarOpen(false);
+                    return;
+                  }
                   setTab(n.key);
                   setSidebarOpen(false);
                 }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                   active
                     ? "bg-primary text-primary-foreground shadow-sm"
+                    : isLockedTab
+                    ? "text-muted-foreground/50 hover:bg-muted/50 cursor-not-allowed"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
                 <Icon size={18} />
-                {n.label}
+                <span className="flex-1 text-left">{n.label}</span>
+                {isLockedTab && <Lock size={13} className="opacity-60" />}
               </button>
             );
           })}
