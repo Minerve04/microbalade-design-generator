@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { ArrowLeft, Send, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/logo.png";
 
 const Contact = () => {
@@ -13,23 +14,40 @@ const Contact = () => {
   const updateField = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.email.trim() || !form.organization.trim()) {
       toast.error("Merci de renseigner les champs obligatoires");
       return;
     }
     setLoading(true);
-    const subject = encodeURIComponent(`Contact Microbalade — ${form.organization}`);
-    const body = encodeURIComponent(
-      `Nom : ${form.name}\nFonction : ${form.role}\nOrganisation : ${form.organization}\nEmail : ${form.email}\nTéléphone : ${form.phone}\n\nMessage :\n${form.message}`
-    );
-    window.location.href = `mailto:contact@microbalade.fr?subject=${subject}&body=${body}`;
-    setTimeout(() => {
-      setLoading(false);
+    const idempotencyKey = crypto.randomUUID();
+    try {
+      const { error: notifyError } = await supabase.functions.invoke("send-transactional-email", {
+        body: {
+          templateName: "contact-notification",
+          recipientEmail: "contact@microbalade.com",
+          idempotencyKey: `contact-notify-${idempotencyKey}`,
+          templateData: { ...form },
+        },
+      });
+      if (notifyError) throw notifyError;
+      await supabase.functions.invoke("send-transactional-email", {
+        body: {
+          templateName: "contact-confirmation",
+          recipientEmail: form.email,
+          idempotencyKey: `contact-confirm-${idempotencyKey}`,
+          templateData: { name: form.name },
+        },
+      });
       setSent(true);
-      toast.success("Votre message a été préparé. Merci !");
-    }, 600);
+      toast.success("Votre message a bien été envoyé. Merci !");
+    } catch (err) {
+      console.error(err);
+      toast.error("Impossible d'envoyer le message. Réessayez plus tard.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -62,9 +80,9 @@ const Contact = () => {
             <CheckCircle2 size={40} className="mx-auto text-primary" />
             <p className="font-semibold text-foreground">Merci pour votre message</p>
             <p className="text-sm text-muted-foreground">
-              Si votre messagerie ne s'est pas ouverte, écrivez-nous directement à{" "}
-              <a href="mailto:contact@microbalade.fr" className="text-primary hover:underline">
-                contact@microbalade.fr
+              Nous revenons vers vous sous 48h. Vous pouvez aussi nous joindre à{" "}
+              <a href="mailto:contact@microbalade.com" className="text-primary hover:underline">
+                contact@microbalade.com
               </a>
               .
             </p>
