@@ -201,20 +201,24 @@ const createCandidateLoops = (originCoord: string, duration: number) => {
   const compactRadii = [60, 80, 100, 130, 160, 200].filter((r) => r >= minRadius);
   const radii = Array.from(new Set([...compactRadii, ...dynamicRadii.filter((r) => r >= minRadius)])).sort((a, b) => a - b);
 
+  // Only well-distributed angle templates: each consecutive gap stays under ~180°
+  // so the 3 waypoints form a real triangle around the origin. Half-circle templates
+  // (e.g. [0, 90, 180]) are excluded because they force the return leg to overlap
+  // the outbound leg — exactly the backtracking we want to avoid.
   const angleTemplates = [
     [0, 120, 240],
-    [15, 130, 255],
-    [40, 160, 285],
-    [70, 185, 320],
+    [15, 135, 255],
     [30, 150, 270],
-    [60, 180, 300],
-    [90, 210, 330],
     [45, 165, 285],
-    [0, 90, 180],
-    [45, 135, 225],
-    [0, 75, 150],
-    [30, 120, 210],
-    [60, 150, 240],
+    [60, 180, 300],
+    [75, 195, 315],
+    [90, 210, 330],
+    [105, 225, 345],
+    [20, 140, 260],
+    [50, 170, 290],
+    [80, 200, 320],
+    [10, 130, 250],
+    [40, 160, 280],
   ];
   return radii.flatMap((radius) =>
     angleTemplates.map((angles) => angles.map((angle) => offsetCoordinate(originCoord, radius, angle)))
