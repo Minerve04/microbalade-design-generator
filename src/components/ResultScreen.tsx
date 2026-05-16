@@ -63,6 +63,7 @@ const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={onBack}
+          aria-label="Retour"
           className="absolute top-4 left-4 bg-card/90 backdrop-blur-md rounded-full p-2.5 shadow-sm border border-border/50"
         >
           <ArrowLeft size={20} className="text-foreground" />
@@ -76,7 +77,7 @@ const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
           transition={{ duration: 0.4 }}
           className="glass-card rounded-2xl p-5"
         >
-          <h2 className="text-lg font-bold text-foreground mb-1">Votre Microbalade</h2>
+          <h1 className="text-lg font-bold text-foreground mb-1">Votre Microbalade</h1>
           <p className="text-sm text-muted-foreground">
             {result.steps.length} étapes · ~{displayedMinutes} min à pied
           </p>
@@ -96,7 +97,7 @@ const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
                   <span className="text-sm font-bold text-primary">{index + 1}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-base font-semibold text-foreground mb-0.5">{step.title}</h3>
+                  <h2 className="text-base font-semibold text-foreground mb-0.5">{step.title}</h2>
                   {step.place && (
                     <p className="text-xs font-medium text-primary mb-1.5 truncate">{step.place}</p>
                   )}

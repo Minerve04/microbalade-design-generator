@@ -1,0 +1,10 @@
+# Microbalade
+
+> Générateur de micro-balades à pied personnalisées : transformez vos temps d'attente en découvertes guidées de quelques minutes autour de vous.
+
+Microbalade est une application web mobile-first qui propose, à partir d'une adresse de départ, d'un temps disponible et de centres d'intérêt (architecture, nature, street-art, histoire insolite), une boucle piétonne en 3 étapes avec descriptions courtes façon guide local et ouverture directe dans Google Maps en mode marche.
+
+## Pages
+
+- [Accueil — Générer une Microbalade](/): formulaire de génération (localisation, durée, intérêts).
+- [Politique de confidentialité](/confidentialite): traitement des données, services tiers, droits RGPD.
