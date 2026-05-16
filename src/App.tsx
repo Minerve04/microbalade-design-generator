@@ -34,6 +34,7 @@ const App = () => (
             <Route path="/partenaires" element={<Partners />} />
             <Route path="/partenaires/connexion" element={<PartnerLogin />} />
             <Route path="/partenaires/paiement-confirme" element={<CheckoutReturn />} />
+            <Route path="/contact" element={<Contact />} />
             <Route
               path="/dashboard/commune"
               element={
