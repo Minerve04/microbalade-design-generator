@@ -1,0 +1,1 @@
+ALTER TABLE public.communes_partenaires ADD COLUMN lien_action TEXT;
