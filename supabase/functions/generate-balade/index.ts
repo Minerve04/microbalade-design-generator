@@ -7,24 +7,13 @@ const corsHeaders = {
 };
 
 type BaladeStep = { title: string; description: string; place?: string };
-type DiscoveredPlace = {
-  name: string;
-  place: string;
-  coord: string;
-  type: string;
-  distanceFromOrigin: number;
-};
-
-type RouteCandidate = {
-  orderedPoints: DiscoveredPlace[];
-  durationMinutes: number;
-  distanceMeters: number;
-};
+type Waypoint = { coord: string; label: string };
+type RouteMeasurement = { durationMinutes: number; distanceMeters: number };
 
 const WALKING_SPEED_METERS_PER_MINUTE = 75;
-const MAX_CANDIDATE_PLACES = 5;
-const MAX_COMBINATIONS_TO_TEST = 5;
-const MAX_PERMUTATIONS_PER_COMBINATION = 1;
+const ORIGIN_SEARCH_TIMEOUT_MS = 3500;
+const REVERSE_GEOCODE_TIMEOUT_MS = 1800;
+const ROUTE_TIMEOUT_MS = 5000;
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -34,27 +23,11 @@ const jsonResponse = (body: unknown, status = 200) =>
 
 const businessError = (message: string) => jsonResponse({ error: message }, 200);
 
-const normalizePlace = (value: string) => value.trim().toLowerCase();
+const fetchWithTimeout = (input: string, init: RequestInit = {}, timeoutMs: number) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-const permute = <T>(items: T[]): T[][] => {
-  if (items.length <= 1) return [items];
-
-  return items.flatMap((item, index) => {
-    const remaining = [...items.slice(0, index), ...items.slice(index + 1)];
-    return permute(remaining).map((tail) => [item, ...tail]);
-  });
-};
-
-const combinationsOfThree = <T>(items: T[]): T[][] => {
-  const combos: T[][] = [];
-  for (let i = 0; i < items.length - 2; i++) {
-    for (let j = i + 1; j < items.length - 1; j++) {
-      for (let k = j + 1; k < items.length; k++) {
-        combos.push([items[i], items[j], items[k]]);
-      }
-    }
-  }
-  return combos;
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timeout));
 };
 
 const parseCoord = (coord: string) => {
@@ -62,55 +35,30 @@ const parseCoord = (coord: string) => {
   return { lon, lat };
 };
 
-const haversineMeters = (from: string, to: string) => {
-  const a = parseCoord(from);
-  const b = parseCoord(to);
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const earthRadius = 6371000;
-  const dLat = toRad(b.lat - a.lat);
-  const dLon = toRad(b.lon - a.lon);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+const formatCoord = (lon: number, lat: number) => `${lon.toFixed(6)},${lat.toFixed(6)}`;
 
-  return 2 * earthRadius * Math.asin(Math.sqrt(h));
+const toLatLng = (coord: string) => {
+  const { lon, lat } = parseCoord(coord);
+  return `${lat},${lon}`;
 };
 
-const estimateLoopDistance = (origin: string, orderedCoords: string[]) => {
-  let total = 0;
-  let previous = origin;
-
-  for (const coord of orderedCoords) {
-    total += haversineMeters(previous, coord);
-    previous = coord;
-  }
-
-  total += haversineMeters(previous, origin);
-  return total;
-};
-
-const getSafeDurationLimit = (duration: number) => {
-  if (duration <= 20) return Math.max(10, duration - 1);
-  return Math.max(10, duration - 2);
-};
-
-const geocode = async (q: string, context?: string): Promise<{ coord: string; label: string } | null> => {
-  const candidates = [q, context ? `${q}, ${context}` : null].filter(Boolean) as string[];
+const geocode = async (query: string, context?: string): Promise<{ coord: string; label: string } | null> => {
+  const candidates = [query, context ? `${query}, ${context}` : null].filter(Boolean) as string[];
 
   for (const candidate of candidates) {
     try {
-      const r = await fetch(
+      const response = await fetchWithTimeout(
         `https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&accept-language=fr&q=${encodeURIComponent(candidate)}`,
-        { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } }
+        { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } },
+        ORIGIN_SEARCH_TIMEOUT_MS
       );
-      if (!r.ok) continue;
-      const j = await r.json();
-      if (Array.isArray(j) && j[0]?.lat && j[0]?.lon) {
+
+      if (!response.ok) continue;
+      const data = await response.json();
+      if (Array.isArray(data) && data[0]?.lat && data[0]?.lon) {
         return {
-          coord: `${j[0].lon},${j[0].lat}`,
-          label: j[0]?.display_name || candidate,
+          coord: formatCoord(Number(data[0].lon), Number(data[0].lat)),
+          label: data[0]?.display_name || candidate,
         };
       }
     } catch {
@@ -121,11 +69,34 @@ const geocode = async (q: string, context?: string): Promise<{ coord: string; la
   return null;
 };
 
-const getWalkingRoute = async (coordinates: string[]) => {
-  const routeUrl = `https://router.project-osrm.org/route/v1/foot/${coordinates.join(";")}?overview=false&steps=false`;
-  const response = await fetch(routeUrl, {
-    headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" },
-  });
+const reverseGeocode = async (coord: string, fallbackLabel: string) => {
+  try {
+    const { lat, lon } = parseCoord(coord);
+    const response = await fetchWithTimeout(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=fr`,
+      { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } },
+      REVERSE_GEOCODE_TIMEOUT_MS
+    );
+
+    if (!response.ok) return fallbackLabel;
+    const data = await response.json();
+    const address = data?.address || {};
+    const name = address.road || address.pedestrian || address.footway || address.neighbourhood || address.suburb;
+    const locality = address.city || address.town || address.village || address.municipality;
+    const label = [name, locality].filter(Boolean).join(", ");
+    return label || data?.display_name || fallbackLabel;
+  } catch {
+    return fallbackLabel;
+  }
+};
+
+const getWalkingRoute = async (coordinates: string[]): Promise<RouteMeasurement> => {
+  const url = `https://router.project-osrm.org/route/v1/foot/${coordinates.join(";")}?overview=false&steps=false`;
+  const response = await fetchWithTimeout(
+    url,
+    { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } },
+    ROUTE_TIMEOUT_MS
+  );
 
   if (!response.ok) {
     throw new Error("Impossible de calculer un itinéraire piéton fiable.");
@@ -133,8 +104,7 @@ const getWalkingRoute = async (coordinates: string[]) => {
 
   const data = await response.json();
   const route = data?.routes?.[0];
-
-  if (!route?.duration || !Array.isArray(route.legs) || route.legs.length === 0) {
+  if (!route?.duration) {
     throw new Error("Aucun itinéraire piéton exploitable n'a été trouvé.");
   }
 
@@ -144,235 +114,96 @@ const getWalkingRoute = async (coordinates: string[]) => {
   };
 };
 
-const discoverNearbyPlaces = async (
-  lat: string,
-  lon: string,
-  radiusMeters: number,
-  interests: string[],
-  originCoord: string
-): Promise<DiscoveredPlace[]> => {
-  const interestFilters: Record<string, string[]> = {
-    nature: [
-      'node(around:R,LAT,LON)["natural"]',
-      'way(around:R,LAT,LON)["natural"]',
-      'node(around:R,LAT,LON)["leisure"="park"]',
-      'way(around:R,LAT,LON)["leisure"="park"]',
-    ],
-    architecture: [
-      'node(around:R,LAT,LON)["building"]',
-      'way(around:R,LAT,LON)["building"]',
-      'node(around:R,LAT,LON)["historic"]',
-      'way(around:R,LAT,LON)["historic"]',
-    ],
-    streetart: [
-      'node(around:R,LAT,LON)["tourism"="artwork"]',
-      'way(around:R,LAT,LON)["tourism"="artwork"]',
-    ],
-    history: [
-      'node(around:R,LAT,LON)["historic"]',
-      'way(around:R,LAT,LON)["historic"]',
-      'node(around:R,LAT,LON)["memorial"]',
-      'way(around:R,LAT,LON)["memorial"]',
-    ],
-  };
+const offsetCoordinate = (coord: string, distanceMeters: number, bearingDegrees: number) => {
+  const { lon, lat } = parseCoord(coord);
+  const earthRadius = 6371000;
+  const bearing = (bearingDegrees * Math.PI) / 180;
+  const latRad = (lat * Math.PI) / 180;
+  const lonRad = (lon * Math.PI) / 180;
+  const angularDistance = distanceMeters / earthRadius;
 
-  const fallbackFilters = [
-    'node(around:R,LAT,LON)["historic"]',
-    'way(around:R,LAT,LON)["historic"]',
-    'node(around:R,LAT,LON)["tourism"]',
-    'way(around:R,LAT,LON)["tourism"]',
-    'node(around:R,LAT,LON)["amenity"]',
-    'way(around:R,LAT,LON)["amenity"]',
-    'node(around:R,LAT,LON)["natural"]',
-    'way(around:R,LAT,LON)["natural"]',
-  ];
+  const nextLat = Math.asin(
+    Math.sin(latRad) * Math.cos(angularDistance) +
+      Math.cos(latRad) * Math.sin(angularDistance) * Math.cos(bearing)
+  );
 
-  const selectedFilters = Array.from(
-    new Set(interests.flatMap((interest) => interestFilters[interest] || []).concat(fallbackFilters))
-  )
-    .map((filter) => filter.replaceAll("R", String(radiusMeters)).replaceAll("LAT", lat).replaceAll("LON", lon))
-    .join(";");
+  const nextLon =
+    lonRad +
+    Math.atan2(
+      Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(latRad),
+      Math.cos(angularDistance) - Math.sin(latRad) * Math.sin(nextLat)
+    );
 
-  const query = `[out:json][timeout:20];(${selectedFilters};);out center tags 80;`;
-  const response = await fetch("https://overpass-api.de/api/interpreter", {
-    method: "POST",
-    headers: {
-      "Content-Type": "text/plain",
-      "User-Agent": "Microbalade/1.0 (contact@microbalade.com)",
-    },
-    body: query,
-  });
-
-  if (!response.ok) {
-    throw new Error("Impossible de rechercher des lieux proches pour la balade.");
-  }
-
-  const data = await response.json();
-  const elements = Array.isArray(data?.elements) ? data.elements : [];
-
-  return elements
-    .map((element: any) => {
-      const tags = element?.tags || {};
-      const name = tags.name || tags["addr:street"] || tags["official_name"] || null;
-      const pointLat = element?.lat ?? element?.center?.lat;
-      const pointLon = element?.lon ?? element?.center?.lon;
-
-      if (!name || pointLat == null || pointLon == null) return null;
-
-      const coord = `${pointLon},${pointLat}`;
-      const locality =
-        tags["addr:city"] ||
-        tags["addr:town"] ||
-        tags["addr:village"] ||
-        tags["addr:municipality"] ||
-        "Longuenesse";
-
-      return {
-        name,
-        place: `${name}, ${locality}`,
-        coord,
-        type: tags.historic || tags.natural || tags.tourism || tags.amenity || tags.leisure || "lieu",
-        distanceFromOrigin: Math.round(haversineMeters(originCoord, coord)),
-      } satisfies DiscoveredPlace;
-    })
-    .filter(Boolean)
-    .filter(
-      (place: any, index: number, arr: any[]) =>
-        arr.findIndex((item) => normalizePlace(item.place) === normalizePlace(place.place)) === index
-    )
-    .sort((a: DiscoveredPlace, b: DiscoveredPlace) => a.distanceFromOrigin - b.distanceFromOrigin)
-    .slice(0, 16);
+  return formatCoord((nextLon * 180) / Math.PI, (nextLat * 180) / Math.PI);
 };
 
-const discoverNearbyPlacesProgressive = async (
-  lat: string,
-  lon: string,
-  baseRadiusMeters: number,
-  interests: string[],
-  originCoord: string
-) => {
+const getSafeDurationLimit = (duration: number) => {
+  const buffer = duration >= 45 ? 6 : duration >= 30 ? 5 : 3;
+  return Math.max(10, duration - buffer);
+};
+
+const createCandidateLoops = (originCoord: string, duration: number) => {
+  const safeLimit = getSafeDurationLimit(duration);
+  const targetDistance = safeLimit * WALKING_SPEED_METERS_PER_MINUTE;
+  const baseRadius = Math.max(70, Math.min(360, Math.round(targetDistance / 5)));
   const radii = Array.from(
-    new Set([
-      baseRadiusMeters,
-      Math.round(baseRadiusMeters * 1.35),
-      Math.round(baseRadiusMeters * 1.7),
-      Math.max(700, Math.round(baseRadiusMeters * 2)),
-      1000,
-    ])
-  ).sort((a, b) => a - b);
+    new Set([0.65, 0.8, 0.95, 1.1, 1.25].map((factor) => Math.max(60, Math.round(baseRadius * factor))))
+  );
 
-  let best: DiscoveredPlace[] = [];
+  const angleTemplates = [
+    [15, 130, 255],
+    [40, 160, 285],
+    [70, 185, 320],
+  ];
 
-  for (const radius of radii) {
-    try {
-      const places = await discoverNearbyPlaces(lat, lon, radius, interests, originCoord);
-      if (places.length > best.length) best = places;
-      if (places.length >= 4) return places;
-    } catch {
-      continue;
-    }
-  }
-
-  return best;
+  return radii.flatMap((radius) =>
+    angleTemplates.map((angles) => angles.map((angle) => offsetCoordinate(originCoord, radius, angle)))
+  );
 };
 
 const buildGoogleMapsUrl = (origin: string, waypoints: string[]) => {
-  const googleMapsUrl = new URL("https://www.google.com/maps/dir/");
-  googleMapsUrl.searchParams.set("api", "1");
-  googleMapsUrl.searchParams.set("travelmode", "walking");
-  googleMapsUrl.searchParams.set("dir_action", "navigate");
-  googleMapsUrl.searchParams.set("origin", origin);
-  googleMapsUrl.searchParams.set("destination", origin);
-  googleMapsUrl.searchParams.set("waypoints", waypoints.join("|"));
-  return googleMapsUrl.toString();
+  const url = new URL("https://www.google.com/maps/dir/");
+  url.searchParams.set("api", "1");
+  url.searchParams.set("travelmode", "walking");
+  url.searchParams.set("dir_action", "navigate");
+  url.searchParams.set("origin", origin);
+  url.searchParams.set("destination", origin);
+  url.searchParams.set("waypoints", waypoints.join("|"));
+  return url.toString();
 };
 
-const buildFallbackSteps = (places: DiscoveredPlace[]): BaladeStep[] =>
-  places.map((place) => ({
-    title: place.name,
-    description: `${place.name} offre une halte piétonne cohérente dans votre boucle découverte. Prenez le temps d'observer les détails du lieu avant de repartir à pied vers l'étape suivante.`,
-    place: place.place,
+const buildDescriptions = (interests: string[]) => {
+  const hasNature = interests.includes("nature");
+  const hasArchitecture = interests.includes("architecture");
+  const hasStreetart = interests.includes("streetart");
+  const hasHistory = interests.includes("history");
+
+  return [
+    hasArchitecture
+      ? "Regardez les façades, les alignements et les détails bâtis que l'on remarque seulement à pied. Cette première halte vous place tout de suite dans un rythme de découverte lente et précise."
+      : hasNature
+        ? "Prenez quelques secondes pour sentir l'ambiance du quartier et repérer ce qui change dans le paysage quand on avance à pied. Cette première halte lance une boucle courte pensée pour rester confortable dans votre temps disponible."
+        : "Cette première halte ouvre la balade avec un point de vue simple à observer sans quitter votre boucle piétonne. Elle vous met immédiatement dans une exploration lente, locale et sans détour inutile.",
+    hasStreetart
+      ? "Ouvrez l'œil sur les détails visuels, les murs, les textures et les signes du quartier que la voiture efface complètement. À pied, cette portion de trajet devient un vrai moment d'observation plutôt qu'un simple déplacement."
+      : hasHistory
+        ? "Ici, le rythme piéton aide à lire les traces discrètes du passé dans l'espace autour de vous. La boucle a été calibrée pour préserver ce temps de regard sans dépasser votre durée disponible."
+        : "Cette deuxième étape sert de pivot dans une boucle volontairement compacte et mesurée côté serveur. Elle garde un vrai temps d'observation tout en restant strictement compatible avec un trajet à pied.",
+    hasNature
+      ? "Cette dernière halte referme la boucle avec une respiration plus calme avant le retour. Le parcours Google Maps reste verrouillé en marche et dimensionné pour rentrer dans le temps demandé."
+      : "Cette dernière halte prépare un retour direct vers le départ sans rallonge cachée. Le parcours a été retenu uniquement parce que sa durée piétonne mesurée reste dans votre créneau disponible.",
+  ];
+};
+
+const buildSteps = (waypoints: Waypoint[], interests: string[]): BaladeStep[] => {
+  const descriptions = buildDescriptions(interests);
+  const titles = ["Premier détour", "Point de passage", "Retour par la boucle"];
+
+  return waypoints.map((waypoint, index) => ({
+    title: titles[index] ?? `Étape ${index + 1}`,
+    description: descriptions[index] ?? descriptions[descriptions.length - 1],
+    place: waypoint.label,
   }));
-
-const selectBestRoute = async (
-  originCoord: string,
-  nearbyPlaces: DiscoveredPlace[],
-  duration: number
-): Promise<RouteCandidate | null> => {
-  const candidatePlaces = nearbyPlaces.slice(0, Math.min(nearbyPlaces.length, MAX_CANDIDATE_PLACES));
-  if (candidatePlaces.length < 3) return null;
-
-  const safeDurationLimit = getSafeDurationLimit(duration);
-  const targetDistanceMeters = safeDurationLimit * WALKING_SPEED_METERS_PER_MINUTE;
-  const routeCache = new Map<string, { durationMinutes: number; distanceMeters: number }>();
-
-  const combinations = combinationsOfThree(candidatePlaces)
-    .map((combo) => {
-      const rankedOrders = permute(combo)
-        .map((orderedPoints) => ({
-          orderedPoints,
-          estimatedDistance: estimateLoopDistance(
-            originCoord,
-            orderedPoints.map((point) => point.coord)
-          ),
-        }))
-        .filter((entry) => entry.estimatedDistance <= duration * WALKING_SPEED_METERS_PER_MINUTE)
-        .sort(
-          (a, b) =>
-            Math.abs(targetDistanceMeters - a.estimatedDistance) -
-            Math.abs(targetDistanceMeters - b.estimatedDistance)
-        )
-        .slice(0, MAX_PERMUTATIONS_PER_COMBINATION);
-
-      if (rankedOrders.length === 0) return null;
-
-      return {
-        score: Math.abs(targetDistanceMeters - rankedOrders[0].estimatedDistance),
-        rankedOrders,
-      };
-    })
-    .filter(Boolean)
-    .sort((a: any, b: any) => a.score - b.score)
-    .slice(0, MAX_COMBINATIONS_TO_TEST);
-
-  let bestSafeRoute: RouteCandidate | null = null;
-  let bestHardRoute: RouteCandidate | null = null;
-
-  for (const combination of combinations as Array<{ rankedOrders: Array<{ orderedPoints: DiscoveredPlace[] }> }>) {
-    for (const option of combination.rankedOrders) {
-      const routeKey = [originCoord, ...option.orderedPoints.map((point) => point.coord), originCoord].join(";");
-      let measured = routeCache.get(routeKey);
-
-      if (!measured) {
-        measured = await getWalkingRoute([
-          originCoord,
-          ...option.orderedPoints.map((point) => point.coord),
-          originCoord,
-        ]);
-        routeCache.set(routeKey, measured);
-      }
-
-      const candidate: RouteCandidate = {
-        orderedPoints: option.orderedPoints,
-        durationMinutes: measured.durationMinutes,
-        distanceMeters: measured.distanceMeters,
-      };
-
-      if (candidate.durationMinutes <= safeDurationLimit) {
-        if (!bestSafeRoute || candidate.durationMinutes > bestSafeRoute.durationMinutes) {
-          bestSafeRoute = candidate;
-        }
-      }
-
-      if (candidate.durationMinutes <= duration) {
-        if (!bestHardRoute || candidate.durationMinutes > bestHardRoute.durationMinutes) {
-          bestHardRoute = candidate;
-        }
-      }
-    }
-  }
-
-  return bestSafeRoute || bestHardRoute;
 };
 
 serve(async (req) => {
@@ -393,67 +224,63 @@ serve(async (req) => {
       return businessError("Choisissez au moins un centre d'intérêt.");
     }
 
-    const interestLabels: Record<string, string> = {
-      architecture: "Architecture",
-      nature: "Nature",
-      streetart: "Street-art",
-      history: "Histoire insolite",
-    };
-
-    const routeContext = location.includes(",")
-      ? location.split(",").slice(-3).join(",").trim()
-      : location;
-
+    const routeContext = location.includes(",") ? location.split(",").slice(-3).join(",").trim() : location;
     const originResolved = await geocode(location, routeContext);
+
     if (!originResolved) {
       return businessError("Impossible de localiser précisément le point de départ.");
     }
 
-    const [originLon, originLat] = originResolved.coord.split(",");
-    const originLatLng = `${originLat},${originLon}`;
-    const maxLoopDistanceMeters = Math.round(duration * WALKING_SPEED_METERS_PER_MINUTE);
-    const baseRadiusMeters = Math.max(180, Math.round(maxLoopDistanceMeters / 8));
+    const safeLimit = getSafeDurationLimit(duration);
+    const loops = createCandidateLoops(originResolved.coord, duration);
 
-    const nearbyPlaces = await discoverNearbyPlacesProgressive(
-      originLat,
-      originLon,
-      baseRadiusMeters,
-      interests as string[],
-      originResolved.coord
-    );
+    let bestWithinSafe: { coords: string[]; route: RouteMeasurement } | null = null;
+    let bestWithinHard: { coords: string[]; route: RouteMeasurement } | null = null;
 
-    if (nearbyPlaces.length < 3) {
-      return businessError(
-        `Pas assez de lieux réellement accessibles à pied ont été trouvés autour de cette adresse pour construire une boucle de ${duration} minutes.`
-      );
+    for (const loop of loops) {
+      try {
+        const route = await getWalkingRoute([originResolved.coord, ...loop, originResolved.coord]);
+
+        if (route.durationMinutes <= safeLimit) {
+          if (!bestWithinSafe || route.durationMinutes > bestWithinSafe.route.durationMinutes) {
+            bestWithinSafe = { coords: loop, route };
+          }
+        }
+
+        if (route.durationMinutes <= duration) {
+          if (!bestWithinHard || route.durationMinutes > bestWithinHard.route.durationMinutes) {
+            bestWithinHard = { coords: loop, route };
+          }
+        }
+      } catch {
+        continue;
+      }
     }
 
-    const selectedRoute = await selectBestRoute(originResolved.coord, nearbyPlaces, duration);
-
-    if (!selectedRoute) {
+    const selected = bestWithinSafe || bestWithinHard;
+    if (!selected) {
       return businessError(
         `Impossible de garantir un trajet Google Maps à pied dans ${duration} minutes maximum depuis cette adresse. Essayez une adresse plus centrale ou un temps plus long.`
       );
     }
 
-    const steps = buildFallbackSteps(selectedRoute.orderedPoints);
-
-    const googleMapsUrl = buildGoogleMapsUrl(
-      originLatLng,
-      selectedRoute.orderedPoints.map((point) => point.coord.split(",").reverse().join(","))
+    const waypointLabels = await Promise.all(
+      selected.coords.map((coord, index) => reverseGeocode(coord, `Point de balade ${index + 1}`))
     );
 
+    const waypoints: Waypoint[] = selected.coords.map((coord, index) => ({
+      coord,
+      label: waypointLabels[index],
+    }));
+
     return jsonResponse({
-      steps,
-      google_maps_url: googleMapsUrl,
-      walking_minutes: selectedRoute.durationMinutes,
-      walking_distance_meters: selectedRoute.distanceMeters,
+      steps: buildSteps(waypoints, interests as string[]),
+      google_maps_url: buildGoogleMapsUrl(toLatLng(originResolved.coord), waypoints.map((point) => toLatLng(point.coord))),
+      walking_minutes: selected.route.durationMinutes,
+      walking_distance_meters: selected.route.distanceMeters,
     });
   } catch (e) {
     console.error("generate-balade error:", e);
-    return jsonResponse(
-      { error: e instanceof Error ? e.message : "Unknown error" },
-      500
-    );
+    return jsonResponse({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
   }
 });
