@@ -432,6 +432,43 @@ export default function CommuneDashboard() {
                 </div>
               </div>
 
+              <div className="bg-card border border-border rounded-2xl p-5 md:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`h-2.5 w-2.5 rounded-full ${
+                      isActive ? "bg-emerald-500" : "bg-destructive"
+                    }`}
+                  />
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Statut de l'abonnement
+                    </div>
+                    <div className="text-lg font-extrabold text-foreground">
+                      {isActive ? "Actif" : "Inactif — paiement requis"}
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-0.5">
+                      Formule : <span className="font-semibold text-foreground">{profile?.abonnement_label ?? "—"}</span>
+                      {profile?.abonnement_prix_annuel ? ` · ${profile.abonnement_prix_annuel} € / an` : ""}
+                    </div>
+                  </div>
+                </div>
+                {!isActive ? (
+                  <Link
+                    to="/partenaires"
+                    className="shrink-0 inline-flex items-center justify-center bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:opacity-90 transition"
+                  >
+                    Payer mon abonnement
+                  </Link>
+                ) : (
+                  <button
+                    onClick={() => setTab("profile")}
+                    className="shrink-0 inline-flex items-center justify-center bg-secondary text-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:bg-secondary/80 transition"
+                  >
+                    Gérer
+                  </button>
+                )}
+              </div>
+
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <StatCard icon={Footprints} label="Balades générées" value={totalBalades.toString()} sub="Sur la période sélectionnée" />
                 <StatCard icon={Clock} label="Durée moyenne demandée" value={`${avgDuration} min`} sub="Par balade" />
