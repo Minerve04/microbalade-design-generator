@@ -36,8 +36,10 @@ import { useCommuneSubscription } from "@/hooks/useCommuneSubscription";
 import { AlertTriangle, Lock } from "lucide-react";
 import { getStripeEnvironment } from "@/lib/stripe";
 import logo from "@/assets/logo.png";
+import CommuneQrCode from "@/components/CommuneQrCode";
+import { QrCode } from "lucide-react";
 
-type TabKey = "overview" | "stats" | "config" | "profile";
+type TabKey = "overview" | "stats" | "config" | "qrcode" | "profile";
 
 interface CommuneProfile {
   id: string;
