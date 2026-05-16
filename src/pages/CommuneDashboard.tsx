@@ -807,12 +807,21 @@ export default function CommuneDashboard() {
                   <h2 className="font-semibold text-foreground mb-1">Code postal</h2>
                   <p className="text-xs text-muted-foreground">Pour ciblage des statistiques.</p>
                 </div>
-                <input
-                  value={codePostal}
-                  onChange={(e) => setCodePostal(e.target.value)}
-                  placeholder="62500"
-                  className="w-full bg-secondary rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
+                <div className="flex gap-2">
+                  <input
+                    value={codePostal}
+                    onChange={(e) => setCodePostal(e.target.value)}
+                    placeholder="62500"
+                    className="flex-1 bg-secondary rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={detectCodePostal}
+                    className="px-4 py-3 rounded-xl text-sm font-medium bg-secondary text-foreground hover:bg-secondary/70 transition"
+                  >
+                    Détecter
+                  </button>
+                </div>
               </div>
 
               <button
