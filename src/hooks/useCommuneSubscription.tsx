@@ -56,6 +56,7 @@ export function useCommuneSubscription() {
     };
   }, [user]);
 
-  const isActive = status === "active" || status === "trialing";
+  // Pas de période d'essai : seul "active" donne accès.
+  const isActive = status === "active";
   return { status, isActive, loading };
 }
