@@ -220,6 +220,7 @@ export default function CommuneQrCode({ communeName, codePostal }: Props) {
 
           <div className="flex flex-wrap gap-2">
             <DownloadButton onClick={downloadPng} label="PNG" />
+            <DownloadButton onClick={downloadPngTransparent} label="PNG transparent" />
             <DownloadButton onClick={downloadJpg} label="JPG" />
             <DownloadButton onClick={downloadSvg} label="SVG" />
             <DownloadButton onClick={downloadPdf} label="PDF" />
