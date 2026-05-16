@@ -84,6 +84,7 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
             data.address?.road,
             data.address?.city || data.address?.town || data.address?.village,
           ].filter(Boolean);
+          skipNextFetch.current = true;
           setLocation(parts.join(", ") || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
         } catch {
           setLocation(`${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`);
