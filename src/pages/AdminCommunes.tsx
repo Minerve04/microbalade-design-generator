@@ -271,6 +271,11 @@ const AdminCommunes = () => {
                 <Input
                   value={form.code_postal}
                   onChange={(e) => setForm({ ...form, code_postal: e.target.value })}
+                  onBlur={async () => {
+                    if (form.nom || !/^\d{5}$/.test(form.code_postal)) return;
+                    const nom = await lookupCommuneByPostcode(form.code_postal);
+                    if (nom) setForm((prev) => (prev.nom ? prev : { ...prev, nom }));
+                  }}
                 />
               </div>
               <div className="sm:col-span-2">
