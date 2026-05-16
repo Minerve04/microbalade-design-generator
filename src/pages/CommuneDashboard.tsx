@@ -95,12 +95,13 @@ function toInputDate(d: Date) {
 export default function CommuneDashboard() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { isActive, status, loading: loadingSub } = useCommuneSubscription();
+  const { isActive, status, isPendingMandat, loading: loadingSub } = useCommuneSubscription();
   const [tab, setTab] = useState<TabKey>("overview");
   // "locked" : abonnement cassé (impayé, annulé…) — pas pour un compte jamais payé.
   const locked = !loadingSub && !isActive && status !== "trialing";
   const neverPaid = !loadingSub && status === "trialing";
   const { openCheckout, closeCheckout, isOpen: checkoutOpen, checkoutElement } = useStripeCheckout();
+  const [chorusOpen, setChorusOpen] = useState(false);
 
   const handlePay = () => {
     const amount = profile?.abonnement_prix_annuel ?? 600;
