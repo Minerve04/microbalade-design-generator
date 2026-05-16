@@ -26,7 +26,7 @@ export default function CheckoutReturn() {
             <h1 className="text-2xl font-extrabold text-foreground">Merci, votre paiement est enregistré</h1>
             <p className="text-sm text-muted-foreground">
               {sessionId
-                ? "Nous activons votre accès partenaire dès la confirmation de votre paiement (instantané par carte, sous 1 à 5 jours par virement SEPA)."
+                ? "Nous activons votre accès partenaire dès la confirmation de votre paiement par carte."
                 : "Aucune session de paiement détectée."}
             </p>
           </div>

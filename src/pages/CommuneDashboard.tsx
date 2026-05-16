@@ -799,8 +799,8 @@ export default function CommuneDashboard() {
               <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
                 <h2 className="font-semibold text-foreground">Factures & paiement</h2>
                 <p className="text-sm text-muted-foreground">
-                  Téléchargez vos factures PDF officielles, mettez à jour votre carte ou
-                  votre mandat SEPA, et gérez votre abonnement depuis le portail sécurisé Stripe.
+                  Téléchargez vos factures PDF officielles, mettez à jour votre moyen de paiement
+                  et gérez votre abonnement depuis le portail sécurisé Stripe.
                 </p>
                 <button
                   onClick={async () => {
