@@ -420,25 +420,27 @@ export default function CommuneDashboard() {
                   </h1>
                   <p className="text-sm text-muted-foreground">Activité Microbalade sur votre territoire.</p>
                 </div>
-                <div className="flex items-end gap-2 bg-card border border-border rounded-xl p-2">
+                <div className="flex items-end gap-2 bg-card border border-border rounded-xl p-2 shadow-sm">
                   <div className="space-y-0.5">
-                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1">Du</label>
+                    <label htmlFor="date-from" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1">Du</label>
                     <input
+                      id="date-from"
                       type="date"
                       value={from}
                       onChange={(e) => setFrom(e.target.value)}
                       max={to}
-                      className="bg-transparent text-sm text-foreground px-2 py-1 focus:outline-none"
+                      className="bg-transparent text-sm text-foreground px-2 py-1 rounded-md cursor-pointer hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/30 w-[140px]"
                     />
                   </div>
                   <div className="space-y-0.5">
-                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1">Au</label>
+                    <label htmlFor="date-to" className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1">Au</label>
                     <input
+                      id="date-to"
                       type="date"
                       value={to}
                       onChange={(e) => setTo(e.target.value)}
                       min={from}
-                      className="bg-transparent text-sm text-foreground px-2 py-1 focus:outline-none"
+                      className="bg-transparent text-sm text-foreground px-2 py-1 rounded-md cursor-pointer hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/30 w-[140px]"
                     />
                   </div>
                 </div>
