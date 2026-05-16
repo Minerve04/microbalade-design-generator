@@ -172,6 +172,77 @@ const Partners = () => {
           </div>
         </section>
 
+        {/* Pricing estimator */}
+        <section className="max-w-3xl mx-auto">
+          <div className="text-center space-y-2 mb-8">
+            <span className="inline-block text-xs font-semibold uppercase tracking-wider text-primary bg-primary/10 px-3 py-1 rounded-full">
+              Estimation tarifaire
+            </span>
+            <h2 className="text-2xl md:text-3xl font-bold text-foreground">Combien pour ma commune ?</h2>
+            <p className="text-muted-foreground text-sm">Faites glisser le curseur selon le nombre d'habitants.</p>
+          </div>
+
+          <div className="rounded-3xl border border-border bg-card shadow-sm p-6 md:p-10 space-y-8">
+            <div className="text-center space-y-3">
+              <p className="text-sm text-muted-foreground">Votre commune peut rejoindre Microbalade pour</p>
+              <p className="text-4xl md:text-6xl font-extrabold tracking-tight text-foreground leading-tight">
+                {formatEuro(pricing.year)} € <span className="text-2xl md:text-3xl font-semibold text-muted-foreground">/ an</span>
+              </p>
+              {pricing.month !== null ? (
+                <p className="text-base md:text-lg text-primary font-medium">
+                  Soit seulement {pricing.month} € / mois
+                </p>
+              ) : (
+                <p className="text-base md:text-lg text-muted-foreground">
+                  Tarif sur-mesure pour les grandes métropoles
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <Slider
+                value={[population]}
+                onValueChange={(v) => setPopulation(v[0])}
+                min={1000}
+                max={SLIDER_MAX}
+                step={1000}
+                className="py-2"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground font-medium">
+                <span>1 000 hab.</span>
+                <span className="text-foreground text-sm font-semibold">
+                  {population >= SLIDER_MAX ? "1 million et plus" : `${formatEuro(population)} habitants`}
+                </span>
+                <span>1 M+</span>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <div className="relative">
+                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={communeQuery}
+                  onChange={(e) => setCommuneQuery(e.target.value)}
+                  placeholder="Rechercher ma commune"
+                  className="w-full bg-secondary rounded-xl pl-11 pr-4 py-3.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={scrollToContact}
+                className="w-full bg-primary text-primary-foreground font-semibold py-4 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 text-base"
+              >
+                Obtenir mon accès partenaire
+                <ArrowRight size={18} />
+              </button>
+              <p className="text-[11px] text-muted-foreground text-center">
+                Tarif annuel tout compris · Sans engagement de durée
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* Contact form */}
         <section id="contact" className="max-w-2xl mx-auto space-y-6 scroll-mt-20">
           <div className="text-center space-y-2">
