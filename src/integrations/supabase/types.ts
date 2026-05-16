@@ -14,7 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      communes_partenaires: {
+        Row: {
+          active: boolean
+          code_postal: string
+          created_at: string
+          id: string
+          logo_url: string | null
+          nom: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code_postal: string
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          nom: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code_postal?: string
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          nom?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
