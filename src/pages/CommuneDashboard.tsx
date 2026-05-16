@@ -21,6 +21,8 @@ import {
 import { toast } from "sonner";
 import {
   ResponsiveContainer,
+  BarChart,
+  Bar,
   AreaChart,
   Area,
   XAxis,
@@ -54,6 +56,7 @@ interface SearchRow {
   origin_address: string | null;
   duree_minutes: number | null;
   themes: string[] | null;
+  monuments: string[] | null;
 }
 
 const NAV: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
@@ -63,18 +66,16 @@ const NAV: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "profile", label: "Profil & Facturation", icon: UserCircle2 },
 ];
 
-const monthlyData = [
-  { month: "Janv.", balades: 80 },
-  { month: "Févr.", balades: 95 },
-  { month: "Mars", balades: 120 },
-  { month: "Avr.", balades: 280 },
-  { month: "Mai", balades: 450 },
-];
-
 const fakeInvoices = [
   { id: "F-2025-05", date: "01/05/2025", amount: 600, label: "Abonnement annuel 2025" },
   { id: "F-2024-05", date: "01/05/2024", amount: 600, label: "Abonnement annuel 2024" },
 ];
+
+const MONTHS_FR = ["Janv.", "Févr.", "Mars", "Avr.", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc."];
+
+function toInputDate(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
 
 export default function CommuneDashboard() {
   const navigate = useNavigate();
@@ -87,6 +88,17 @@ export default function CommuneDashboard() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Date filter (default = last 6 months)
+  const today = useMemo(() => new Date(), []);
+  const sixMonthsAgo = useMemo(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 5);
+    d.setDate(1);
+    return d;
+  }, []);
+  const [from, setFrom] = useState<string>(toInputDate(sixMonthsAgo));
+  const [to, setTo] = useState<string>(toInputDate(today));
 
   // Form state
   const [lienAction, setLienAction] = useState("");
@@ -115,12 +127,71 @@ export default function CommuneDashboard() {
     (async () => {
       const { data } = await supabase
         .from("statistiques_recherches")
-        .select("id, created_at, ville, origin_address, duree_minutes, themes")
+        .select("id, created_at, ville, origin_address, duree_minutes, themes, monuments")
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(1000);
       if (data) setSearches(data as SearchRow[]);
     })();
   }, []);
+
+  // Filtered dataset
+  const filtered = useMemo(() => {
+    const fromTs = new Date(from + "T00:00:00").getTime();
+    const toTs = new Date(to + "T23:59:59").getTime();
+    return searches.filter((s) => {
+      const t = new Date(s.created_at).getTime();
+      return t >= fromTs && t <= toTs;
+    });
+  }, [searches, from, to]);
+
+  // Monthly aggregation for chart
+  const monthlyData = useMemo(() => {
+    const map = new Map<string, { key: string; label: string; balades: number; sort: number }>();
+    filtered.forEach((s) => {
+      const d = new Date(s.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, "0")}`;
+      const label = `${MONTHS_FR[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
+      const sort = d.getFullYear() * 12 + d.getMonth();
+      const existing = map.get(key);
+      if (existing) existing.balades += 1;
+      else map.set(key, { key, label, balades: 1, sort });
+    });
+    return Array.from(map.values()).sort((a, b) => a.sort - b.sort);
+  }, [filtered]);
+
+  const totalBalades = filtered.length;
+  const avgDuration = useMemo(() => {
+    const arr = filtered.map((s) => s.duree_minutes ?? 0).filter(Boolean);
+    if (!arr.length) return 0;
+    return Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
+  }, [filtered]);
+
+  // Top monuments (unnest)
+  const topMonuments = useMemo(() => {
+    const counts = new Map<string, number>();
+    filtered.forEach((s) =>
+      (s.monuments ?? []).forEach((m) => {
+        const k = m.trim();
+        if (k) counts.set(k, (counts.get(k) ?? 0) + 1);
+      })
+    );
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+  }, [filtered]);
+
+  // Duration buckets
+  const durationData = useMemo(() => {
+    const buckets = [15, 30, 45, 60, 75, 90, 120];
+    const counts = buckets.map((b) => ({ label: `${b} min`, count: 0 }));
+    filtered.forEach((s) => {
+      if (!s.duree_minutes) return;
+      const idx = buckets.indexOf(s.duree_minutes);
+      if (idx >= 0) counts[idx].count += 1;
+    });
+    return counts.filter((c) => c.count > 0);
+  }, [filtered]);
 
   const handleLogout = async () => {
     await signOut();
@@ -170,7 +241,7 @@ export default function CommuneDashboard() {
 
   const downloadCsv = () => {
     const header = ["Date", "Point de départ", "Durée (min)", "Étapes"];
-    const rows = searches.map((s) => [
+    const rows = filtered.map((s) => [
       new Date(s.created_at).toLocaleDateString("fr-FR"),
       (s.origin_address ?? s.ville ?? "").replace(/[,;]/g, " "),
       s.duree_minutes ?? "",
@@ -186,7 +257,7 @@ export default function CommuneDashboard() {
     URL.revokeObjectURL(url);
   };
 
-  const totalThisMonth = useMemo(() => monthlyData[monthlyData.length - 1].balades, []);
+  
 
   if (loadingProfile) {
     return (
@@ -278,50 +349,144 @@ export default function CommuneDashboard() {
         <main className="flex-1 p-5 md:p-8 max-w-6xl w-full mx-auto">
           {tab === "overview" && (
             <section className="space-y-6">
-              <div>
-                <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">
-                  Bonjour, {profile?.nom_collectivite}
-                </h1>
-                <p className="text-sm text-muted-foreground">Voici l'activité Microbalade sur votre territoire.</p>
+              <div className="flex items-start justify-between flex-wrap gap-4">
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">
+                    Bonjour, {profile?.nom_collectivite}
+                  </h1>
+                  <p className="text-sm text-muted-foreground">Activité Microbalade sur votre territoire.</p>
+                </div>
+                <div className="flex items-end gap-2 bg-card border border-border rounded-xl p-2">
+                  <div className="space-y-0.5">
+                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1">Du</label>
+                    <input
+                      type="date"
+                      value={from}
+                      onChange={(e) => setFrom(e.target.value)}
+                      max={to}
+                      className="bg-transparent text-sm text-foreground px-2 py-1 focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-0.5">
+                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1">Au</label>
+                    <input
+                      type="date"
+                      value={to}
+                      onChange={(e) => setTo(e.target.value)}
+                      min={from}
+                      className="bg-transparent text-sm text-foreground px-2 py-1 focus:outline-none"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <StatCard icon={Footprints} label="Balades générées ce mois-ci" value={totalThisMonth.toString()} sub="+161 % vs avril" />
-                <StatCard icon={Clock} label="Temps moyen passé" value="32 min" sub="Sur l'app" />
-                <StatCard icon={TrendingUp} label="Croissance trimestrielle" value="+275 %" sub="Mars → Mai" />
+                <StatCard icon={Footprints} label="Balades générées" value={totalBalades.toString()} sub="Sur la période sélectionnée" />
+                <StatCard icon={Clock} label="Durée moyenne demandée" value={`${avgDuration} min`} sub="Par balade" />
+                <StatCard
+                  icon={TrendingUp}
+                  label="Monuments uniques mis en avant"
+                  value={topMonuments.length.toString()}
+                  sub="Affichés au moins une fois"
+                />
               </div>
 
               <div className="bg-card border border-border rounded-2xl p-5 md:p-6">
                 <h2 className="font-semibold text-foreground mb-4">Évolution des balades générées</h2>
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={monthlyData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="balades" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
-                          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                      <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                      <Tooltip
-                        contentStyle={{
-                          background: "hsl(var(--card))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: 12,
-                          fontSize: 12,
-                        }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="balades"
-                        stroke="hsl(var(--primary))"
-                        strokeWidth={2.5}
-                        fill="url(#balades)"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                {monthlyData.length === 0 ? (
+                  <EmptyChart />
+                ) : (
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={monthlyData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="balades" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
+                            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} allowDecimals={false} />
+                        <Tooltip
+                          contentStyle={{
+                            background: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: 12,
+                            fontSize: 12,
+                          }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="balades"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={2.5}
+                          fill="url(#balades)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid lg:grid-cols-2 gap-5">
+                <div className="bg-card border border-border rounded-2xl p-5 md:p-6">
+                  <h2 className="font-semibold text-foreground mb-4">Monuments & rues les plus visités</h2>
+                  {topMonuments.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-6 text-center">
+                      Aucune donnée sur cette période.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {topMonuments.map((m, i) => {
+                        const max = topMonuments[0].count;
+                        const pct = (m.count / max) * 100;
+                        return (
+                          <li key={m.name} className="space-y-1">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-foreground truncate pr-3">
+                                <span className="text-muted-foreground font-mono text-xs mr-2">#{i + 1}</span>
+                                {m.name}
+                              </span>
+                              <span className="text-foreground font-semibold tabular-nums">{m.count}</span>
+                            </div>
+                            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-primary rounded-full transition-all"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="bg-card border border-border rounded-2xl p-5 md:p-6">
+                  <h2 className="font-semibold text-foreground mb-4">Durées de balade privilégiées</h2>
+                  {durationData.length === 0 ? (
+                    <EmptyChart />
+                  ) : (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={durationData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                          <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} allowDecimals={false} />
+                          <Tooltip
+                            contentStyle={{
+                              background: "hsl(var(--card))",
+                              border: "1px solid hsl(var(--border))",
+                              borderRadius: 12,
+                              fontSize: 12,
+                            }}
+                          />
+                          <Bar dataKey="count" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
                 </div>
               </div>
             </section>
@@ -355,14 +520,14 @@ export default function CommuneDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {searches.length === 0 && (
+                      {filtered.length === 0 && (
                         <tr>
                           <td colSpan={4} className="text-center py-10 text-muted-foreground text-sm">
-                            Aucune recherche enregistrée pour l'instant.
+                            Aucune recherche sur la période sélectionnée.
                           </td>
                         </tr>
                       )}
-                      {searches.map((s) => (
+                      {filtered.map((s) => (
                         <tr key={s.id} className="hover:bg-muted/30">
                           <td className="px-5 py-3 text-foreground">
                             {new Date(s.created_at).toLocaleDateString("fr-FR")}
@@ -581,6 +746,14 @@ function InfoLine({ label, value }: { label: string; value: string }) {
     <div>
       <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</div>
       <div className="text-sm text-foreground mt-1">{value}</div>
+    </div>
+  );
+}
+
+function EmptyChart() {
+  return (
+    <div className="h-64 flex items-center justify-center text-sm text-muted-foreground">
+      Aucune donnée sur la période sélectionnée.
     </div>
   );
 }
