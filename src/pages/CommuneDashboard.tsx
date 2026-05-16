@@ -127,12 +127,71 @@ export default function CommuneDashboard() {
     (async () => {
       const { data } = await supabase
         .from("statistiques_recherches")
-        .select("id, created_at, ville, origin_address, duree_minutes, themes")
+        .select("id, created_at, ville, origin_address, duree_minutes, themes, monuments")
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(1000);
       if (data) setSearches(data as SearchRow[]);
     })();
   }, []);
+
+  // Filtered dataset
+  const filtered = useMemo(() => {
+    const fromTs = new Date(from + "T00:00:00").getTime();
+    const toTs = new Date(to + "T23:59:59").getTime();
+    return searches.filter((s) => {
+      const t = new Date(s.created_at).getTime();
+      return t >= fromTs && t <= toTs;
+    });
+  }, [searches, from, to]);
+
+  // Monthly aggregation for chart
+  const monthlyData = useMemo(() => {
+    const map = new Map<string, { key: string; label: string; balades: number; sort: number }>();
+    filtered.forEach((s) => {
+      const d = new Date(s.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, "0")}`;
+      const label = `${MONTHS_FR[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
+      const sort = d.getFullYear() * 12 + d.getMonth();
+      const existing = map.get(key);
+      if (existing) existing.balades += 1;
+      else map.set(key, { key, label, balades: 1, sort });
+    });
+    return Array.from(map.values()).sort((a, b) => a.sort - b.sort);
+  }, [filtered]);
+
+  const totalBalades = filtered.length;
+  const avgDuration = useMemo(() => {
+    const arr = filtered.map((s) => s.duree_minutes ?? 0).filter(Boolean);
+    if (!arr.length) return 0;
+    return Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
+  }, [filtered]);
+
+  // Top monuments (unnest)
+  const topMonuments = useMemo(() => {
+    const counts = new Map<string, number>();
+    filtered.forEach((s) =>
+      (s.monuments ?? []).forEach((m) => {
+        const k = m.trim();
+        if (k) counts.set(k, (counts.get(k) ?? 0) + 1);
+      })
+    );
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+  }, [filtered]);
+
+  // Duration buckets
+  const durationData = useMemo(() => {
+    const buckets = [15, 30, 45, 60, 75, 90, 120];
+    const counts = buckets.map((b) => ({ label: `${b} min`, count: 0 }));
+    filtered.forEach((s) => {
+      if (!s.duree_minutes) return;
+      const idx = buckets.indexOf(s.duree_minutes);
+      if (idx >= 0) counts[idx].count += 1;
+    });
+    return counts.filter((c) => c.count > 0);
+  }, [filtered]);
 
   const handleLogout = async () => {
     await signOut();
