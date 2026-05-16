@@ -146,7 +146,7 @@ const getWalkingRoute = async (coordinates: string[]): Promise<RouteMeasurement>
   if (!route || typeof route.distance !== "number") throw new Error("No route");
 
   const distanceMeters = Math.round(route.distance);
-  const durationMinutes = Math.ceil(distanceMeters / EFFECTIVE_WALKING_SPEED_M_PER_MIN);
+  const durationMinutes = Math.round(distanceMeters / EFFECTIVE_WALKING_SPEED_M_PER_MIN);
   return { durationMinutes, distanceMeters };
 };
 
