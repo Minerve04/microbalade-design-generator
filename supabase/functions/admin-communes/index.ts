@@ -12,17 +12,27 @@ Deno.serve(async (req) => {
   try {
     const { password, action, payload } = await req.json();
     const adminPwd = Deno.env.get("ADMIN_PASSWORD");
-    if (!adminPwd || password !== adminPwd) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    const ip = (req.headers.get("x-forwarded-for") ?? "unknown").split(",")[0].trim() || "unknown";
+    const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const { count } = await supabase
+      .from("admin_login_attempts")
+      .select("id", { count: "exact", head: true })
+      .eq("ip", ip)
+      .gte("created_at", since);
+    if ((count ?? 0) >= 5) {
+      return json({ error: "Trop de tentatives, réessayez dans 15 minutes" }, 429);
+    }
+
+    if (!adminPwd || typeof password !== "string" || !(await timingSafeEqual(password, adminPwd))) {
+      await supabase.from("admin_login_attempts").insert({ ip });
+      return json({ error: "Unauthorized" }, 401);
+    }
 
     if (action === "list") {
       const { data, error } = await supabase
@@ -34,11 +44,12 @@ Deno.serve(async (req) => {
     }
 
     if (action === "create") {
-      const { nom, code_postal, logo_url, active } = payload ?? {};
+      const { nom, code_postal, logo_url, active, lien_action } = payload ?? {};
       if (!nom || !code_postal) return json({ error: "nom et code_postal requis" }, 400);
+      if (lien_action && !isHttpUrl(lien_action)) return json({ error: "lien_action invalide (http/https)" }, 400);
       const { data, error } = await supabase
         .from("communes_partenaires")
-        .insert({ nom, code_postal, logo_url: logo_url || null, active: active ?? true })
+        .insert({ nom, code_postal, logo_url: logo_url || null, lien_action: lien_action || null, active: active ?? true })
         .select()
         .single();
       if (error) throw error;
@@ -46,8 +57,15 @@ Deno.serve(async (req) => {
     }
 
     if (action === "update") {
-      const { id, ...fields } = payload ?? {};
+      const { id, ...raw } = payload ?? {};
       if (!id) return json({ error: "id requis" }, 400);
+      const ALLOWED = ["nom", "code_postal", "logo_url", "lien_action", "active"];
+      const fields: Record<string, unknown> = {};
+      for (const k of ALLOWED) if (k in raw) fields[k] = raw[k];
+      if (fields.lien_action && !isHttpUrl(String(fields.lien_action))) {
+        return json({ error: "lien_action invalide (http/https)" }, 400);
+      }
+      if (fields.lien_action === "") fields.lien_action = null;
       const { data, error } = await supabase
         .from("communes_partenaires")
         .update(fields)
@@ -178,4 +196,25 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function isHttpUrl(v: string): boolean {
+  try {
+    const u = new URL(v);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+async function timingSafeEqual(a: string, b: string): Promise<boolean> {
+  const enc = new TextEncoder();
+  const [ha, hb] = await Promise.all([
+    crypto.subtle.digest("SHA-256", enc.encode(a)),
+    crypto.subtle.digest("SHA-256", enc.encode(b)),
+  ]);
+  const x = new Uint8Array(ha), y = new Uint8Array(hb);
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
+  return diff === 0;
 }

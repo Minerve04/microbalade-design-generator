@@ -30,7 +30,7 @@ export function useCommuneSubscription() {
         .eq("user_id", user.id)
         .maybeSingle();
       if (!mounted) return;
-      setStatus(((data?.status_abonnement as CommuneStatus | undefined) ?? "trialing"));
+      setStatus(((data?.status_abonnement as CommuneStatus | undefined) ?? "incomplete"));
       setLoading(false);
     })();
 
