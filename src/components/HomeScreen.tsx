@@ -357,6 +357,13 @@ const HomeScreen = ({ onGenerate, loading, commune, initialLocation, notice }: H
           >
             Mentions légales
           </Link>
+          <span className="text-xs text-muted-foreground">·</span>
+          <a
+            href="/balades/pas-de-calais.html"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Balades par commune
+          </a>
         </footer>
       </motion.div>
     </div>

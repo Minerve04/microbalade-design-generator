@@ -40,7 +40,16 @@ const Index = () => {
     setCommune(null);
     setNotice(null);
     setInitialLocation(null);
-    if (!slug) return;
+    if (!slug) {
+      // Point de départ transmis par les pages « Balades à pied à … » (/?lat=…&lon=…&depart=…)
+      const lat = Number(searchParams.get("lat"));
+      const lon = Number(searchParams.get("lon"));
+      const label = (searchParams.get("depart") ?? "").slice(0, 120).trim();
+      if (label && Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 && (lat !== 0 || lon !== 0)) {
+        setInitialLocation({ label, lat, lon });
+      }
+      return;
+    }
     if (!SLUG_RE.test(slug)) {
       setNotice("Cette commune n'est pas encore partenaire.");
       return;

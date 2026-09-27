@@ -1,0 +1,50 @@
+name: Pages SEO communes
+
+on:
+  workflow_dispatch:
+    inputs:
+      dept:
+        description: "Département (ex. 62)"
+        default: "62"
+      max:
+        description: "Nombre maximum de pages"
+        default: "150"
+  schedule:
+    - cron: "17 4 3 * *"   # le 3 de chaque mois, 4h17 UTC
+
+permissions:
+  contents: write
+
+concurrency:
+  group: seo-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Générer les pages
+        env:
+          SUPABASE_URL: https://jeceuubezficfxwzejsr.supabase.co
+          # clé publique (déjà présente dans le site) : lecture des communes partenaires actives
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImplY2V1dWJlemZpY2Z4d3planNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3NTM5MzQsImV4cCI6MjA4OTMyOTkzNH0.sh7tUlTOylaMXpP4hkjzmqxdQLBwztKINV7KQUQWPSI
+        run: |
+          python3 scripts/seo/build_commune_pages.py \
+            --dept "${{ github.event.inputs.dept || '62' }}" \
+            --max "${{ github.event.inputs.max || '150' }}"
+      - name: Publier dans le dépôt
+        run: |
+          git config user.name "microbalade-seo-bot"
+          git config user.email "seo-bot@users.noreply.github.com"
+          git add public/balades public/sitemap-balades.xml public/robots.txt scripts/seo/report-*.json
+          if git diff --cached --quiet; then
+            echo "Aucun changement."
+          else
+            git commit -m "SEO : pages communes (${{ github.event.inputs.dept || '62' }}) régénérées"
+            git push
+          fi
