@@ -1,193 +1,209 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { Download, QrCode as QrIcon, Loader2 } from "lucide-react";
+import { Download, QrCode as QrIcon, Loader2, FileText } from "lucide-react";
 import { toast } from "sonner";
+import {
+  LOGO_RATIO,
+  MIN_CONTRAST,
+  buildPoster,
+  cleanCommuneName,
+  contrastWithWhite,
+  isValidHex,
+} from "@/lib/qrPoster";
 
 interface Props {
   communeName: string;
-  codePostal: string | null;
+  slug: string | null;
+  logoUrl: string | null;
 }
 
-const BASE_URL = "https://www.microbalade.fr";
+const BASE = "https://microbalade.fr";
 
-function slugify(s: string) {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")
-    .slice(0, 40) || "microbalade";
+type LoadedLogo = { bitmap: ImageBitmap; dataUrl: string; pdf: { bytes: Uint8Array; type: "png" | "jpg" } };
+
+async function loadLogo(url: string): Promise<LoadedLogo> {
+  const res = await fetch(url, { mode: "cors" });
+  if (!res.ok) throw new Error("logo");
+  const blob = await res.blob();
+  const bitmap = await createImageBitmap(blob);
+  // PNG bytes for PDF/SVG (works whatever the source format)
+  const c = document.createElement("canvas");
+  c.width = bitmap.width;
+  c.height = bitmap.height;
+  c.getContext("2d")!.drawImage(bitmap, 0, 0);
+  const dataUrl = c.toDataURL("image/png");
+  const bytes = Uint8Array.from(atob(dataUrl.split(",")[1]), (ch) => ch.charCodeAt(0));
+  return { bitmap, dataUrl, pdf: { bytes, type: "png" } };
 }
 
-export default function CommuneQrCode({ communeName, codePostal }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [svgMarkup, setSvgMarkup] = useState<string>("");
-  const [previewUrl, setPreviewUrl] = useState<string>("");
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+async function renderCanvas(url: string, width: number, color: string, light: string, logo: LoadedLogo | null) {
+  const canvas = document.createElement("canvas");
+  await QRCode.toCanvas(canvas, url, { width, margin: 2, errorCorrectionLevel: "H", color: { dark: color, light } });
+  if (logo) {
+    const ctx = canvas.getContext("2d")!;
+    const box = canvas.width * LOGO_RATIO;
+    const x = (canvas.width - box) / 2;
+    const pad = box * 0.08;
+    ctx.fillStyle = "#ffffff";
+    roundRect(ctx, x - pad, x - pad, box + pad * 2, box + pad * 2, box * 0.16);
+    ctx.fill();
+    const s = Math.min(box / logo.bitmap.width, box / logo.bitmap.height);
+    const w = logo.bitmap.width * s;
+    const h = logo.bitmap.height * s;
+    ctx.drawImage(logo.bitmap, x + (box - w) / 2, x + (box - h) / 2, w, h);
+  }
+  return canvas;
+}
+
+async function fetchBytes(path: string) {
+  const r = await fetch(path);
+  return new Uint8Array(await r.arrayBuffer());
+}
+
+export default function CommuneQrCode({ communeName, slug, logoUrl }: Props) {
+  const displayName = cleanCommuneName(communeName);
+  const trackingUrl = slug ? `${BASE}/${slug}?src=qr` : `${BASE}/?src=qr`;
+  const shortUrl = slug ? `microbalade.fr/${slug}` : "microbalade.fr";
+  const fileBase = `microbalade-qr-${slug ?? "commune"}`;
+
+  const [color, setColor] = useState("#0a0a0a");
+  const [colorInput, setColorInput] = useState("#0a0a0a");
+  const [withLogo, setWithLogo] = useState(!!logoUrl);
+  const [logo, setLogo] = useState<LoadedLogo | null>(null);
+  const [previewUrl, setPreviewUrl] = useState("");
   const [loading, setLoading] = useState(true);
-
-  // Unique tracking URL per commune (visible to user, also useful for stats).
-  const trackingUrl = `${BASE_URL}/?source=qr&commune=${encodeURIComponent(
-    slugify(communeName)
-  )}${codePostal ? `&cp=${encodeURIComponent(codePostal)}` : ""}`;
-
-  const fileBase = `microbalade-qr-${slugify(communeName)}`;
+  const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
+    setWithLogo(!!logoUrl);
+    if (!logoUrl) {
+      setLogo(null);
+      return;
+    }
     let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const [dataUrl, svg] = await Promise.all([
-          QRCode.toDataURL(trackingUrl, {
-            width: 512,
-            margin: 2,
-            errorCorrectionLevel: "H",
-            color: { dark: "#0a0a0a", light: "#ffffff" },
-          }),
-          QRCode.toString(trackingUrl, {
-            type: "svg",
-            margin: 2,
-            errorCorrectionLevel: "H",
-            color: { dark: "#0a0a0a", light: "#ffffff" },
-          }),
-        ]);
-        if (!cancelled) {
-          setPreviewUrl(dataUrl);
-          setSvgMarkup(svg);
-        }
-      } catch (e) {
-        toast.error("Impossible de générer le QR code.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+    loadLogo(logoUrl)
+      .then((l) => !cancelled && setLogo(l))
+      .catch(() => !cancelled && toast.error("Logo illisible : QR code généré sans logo."));
     return () => {
       cancelled = true;
     };
-  }, [trackingUrl]);
+  }, [logoUrl]);
 
-  const triggerDownload = (href: string, ext: string) => {
+  const activeLogo = withLogo ? logo : null;
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    renderCanvas(trackingUrl, 512, color, "#ffffff", activeLogo)
+      .then((c) => !cancelled && setPreviewUrl(c.toDataURL("image/png")))
+      .catch(() => toast.error("Impossible de générer le QR code."))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [trackingUrl, color, activeLogo]);
+
+  const applyColor = () => {
+    const v = colorInput.trim();
+    if (!isValidHex(v)) {
+      toast.error("Couleur invalide : utilisez le format #RRGGBB.");
+      return;
+    }
+    const ratio = contrastWithWhite(v);
+    if (ratio < MIN_CONTRAST) {
+      toast.error(
+        `Couleur trop claire (contraste ${ratio.toFixed(1)}:1, minimum ${MIN_CONTRAST}:1) : le QR code risque de ne pas être lu. Choisissez une teinte plus foncée.`
+      );
+      return;
+    }
+    setColor(v);
+    toast.success("Couleur appliquée.");
+  };
+
+  const triggerDownload = (href: string, name: string) => {
     const a = document.createElement("a");
     a.href = href;
-    a.download = `${fileBase}.${ext}`;
+    a.download = name;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
   };
 
-  const downloadPng = async () => {
+  const downloadRaster = async (kind: "png" | "png-t" | "jpg") => {
     try {
-      const dataUrl = await QRCode.toDataURL(trackingUrl, {
-        width: 2048,
-        margin: 2,
-        errorCorrectionLevel: "H",
-        color: { dark: "#0a0a0a", light: "#ffffff" },
-      });
-      triggerDownload(dataUrl, "png");
+      const c = await renderCanvas(trackingUrl, 2048, color, kind === "png-t" ? "#00000000" : "#ffffff", activeLogo);
+      if (kind === "jpg") triggerDownload(c.toDataURL("image/jpeg", 0.95), `${fileBase}.jpg`);
+      else triggerDownload(c.toDataURL("image/png"), `${fileBase}${kind === "png-t" ? "-transparent" : ""}.png`);
     } catch {
-      toast.error("Erreur lors du téléchargement PNG.");
+      toast.error("Erreur lors du téléchargement.");
     }
   };
 
-  const downloadPngTransparent = async () => {
+  const downloadSvg = async () => {
     try {
-      const dataUrl = await QRCode.toDataURL(trackingUrl, {
-        width: 2048,
+      let svg = await QRCode.toString(trackingUrl, {
+        type: "svg",
         margin: 2,
         errorCorrectionLevel: "H",
-        color: { dark: "#0a0a0a", light: "#00000000" },
+        color: { dark: color, light: "#ffffff" },
       });
-      const a = document.createElement("a");
-      a.href = dataUrl;
-      a.download = `${fileBase}-transparent.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } catch {
-      toast.error("Erreur lors du téléchargement PNG transparent.");
-    }
-  };
-
-  const downloadJpg = async () => {
-    try {
-      const canvas = document.createElement("canvas");
-      await QRCode.toCanvas(canvas, trackingUrl, {
-        width: 2048,
-        margin: 2,
-        errorCorrectionLevel: "H",
-        color: { dark: "#0a0a0a", light: "#ffffff" },
-      });
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
-      triggerDownload(dataUrl, "jpg");
-    } catch {
-      toast.error("Erreur lors du téléchargement JPG.");
-    }
-  };
-
-  const downloadSvg = () => {
-    if (!svgMarkup) return;
-    const blob = new Blob([svgMarkup], { type: "image/svg+xml;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    triggerDownload(url, "svg");
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
-
-  const downloadPdf = async () => {
-    try {
-      // Generate real JPEG bytes (required by /DCTDecode).
-      const canvas = document.createElement("canvas");
-      await QRCode.toCanvas(canvas, trackingUrl, {
-        width: 1024,
-        margin: 2,
-        errorCorrectionLevel: "H",
-        color: { dark: "#0a0a0a", light: "#ffffff" },
-      });
-      const jpegDataUrl = canvas.toDataURL("image/jpeg", 0.95);
-      const jpegBytes = Uint8Array.from(atob(jpegDataUrl.split(",")[1]), (c) => c.charCodeAt(0));
-
-      const pdfParts: (string | Uint8Array)[] = [];
-      const offsets: number[] = [];
-      let pos = 0;
-      const push = (chunk: string | Uint8Array) => {
-        const bytes = typeof chunk === "string" ? new TextEncoder().encode(chunk) : chunk;
-        pdfParts.push(bytes);
-        pos += bytes.byteLength;
-      };
-      const addObj = (body: string | Uint8Array) => {
-        offsets.push(pos);
-        push(`${offsets.length} 0 obj\n`);
-        push(body);
-        push("\nendobj\n");
-      };
-      push("%PDF-1.4\n%\u00E2\u00E3\u00CF\u00D3\n");
-      addObj("<< /Type /Catalog /Pages 2 0 R >>");
-      addObj("<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
-      addObj(
-        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /XObject << /Im0 4 0 R >> /Font << /F1 5 0 R >> >> /Contents 6 0 R >>"
-      );
-      // Image XObject (JPEG via /DCTDecode)
-      const header = `<< /Type /XObject /Subtype /Image /Width 1024 /Height 1024 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.byteLength} >>\nstream\n`;
-      offsets.push(pos);
-      push(`4 0 obj\n`);
-      push(header);
-      push(jpegBytes);
-      push("\nendstream\nendobj\n");
-      addObj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
-      const safeUrl = trackingUrl.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
-      const content = `q\n400 0 0 400 97 250 cm\n/Im0 Do\nQ\nBT /F1 10 Tf 80 200 Td (${safeUrl}) Tj ET\n`;
-      addObj(`<< /Length ${content.length} >>\nstream\n${content}endstream`);
-      const xrefStart = pos;
-      push(`xref\n0 ${offsets.length + 1}\n0000000000 65535 f \n`);
-      offsets.forEach((o) => push(`${o.toString().padStart(10, "0")} 00000 n \n`));
-      push(`trailer\n<< /Size ${offsets.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`);
-      const blob = new Blob(pdfParts as BlobPart[], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      triggerDownload(url, "pdf");
+      if (activeLogo) {
+        const vb = /viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/.exec(svg);
+        const n = vb ? Number(vb[1]) : 100;
+        const box = n * LOGO_RATIO;
+        const x = (n - box) / 2;
+        const pad = box * 0.08;
+        svg = svg.replace(
+          "</svg>",
+          `<rect x="${x - pad}" y="${x - pad}" width="${box + 2 * pad}" height="${box + 2 * pad}" rx="${box * 0.16}" fill="#ffffff"/>` +
+            `<image x="${x}" y="${x}" width="${box}" height="${box}" preserveAspectRatio="xMidYMid meet" href="${activeLogo.dataUrl}"/></svg>`
+        );
+      }
+      const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+      triggerDownload(url, `${fileBase}.svg`);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch {
-      toast.error("PDF indisponible, téléchargement en PNG à la place.");
-      downloadPng();
+      toast.error("Erreur lors du téléchargement SVG.");
+    }
+  };
+
+  const downloadPoster = async (format: "A4" | "A5") => {
+    setBusy(format);
+    try {
+      const [regular, semibold, extrabold, microLogo] = await Promise.all([
+        fetchBytes("/fonts/Inter-Regular.ttf"),
+        fetchBytes("/fonts/Inter-SemiBold.ttf"),
+        fetchBytes("/fonts/Inter-ExtraBold.ttf"),
+        fetchBytes("/logo-microbalade.png"),
+      ]);
+      const bytes = await buildPoster({
+        format,
+        url: trackingUrl,
+        shortUrl,
+        communeName: displayName,
+        qrColor: color,
+        townLogo: activeLogo?.pdf ?? (logo?.pdf || null),
+        microLogo,
+        fonts: { regular, semibold, extrabold },
+      });
+      const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/pdf" }));
+      triggerDownload(url, `microbalade-affichette-${format.toLowerCase()}-${slug ?? "commune"}.pdf`);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      console.error(e);
+      toast.error("Impossible de générer l'affichette.");
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -203,8 +219,8 @@ export default function CommuneQrCode({ communeName, codePostal }: Props) {
         </p>
       </div>
 
-      <div className="bg-card border border-border rounded-2xl p-6 grid md:grid-cols-[auto,1fr] gap-6 items-center">
-        <div className="w-56 h-56 bg-white rounded-2xl border border-border p-3 flex items-center justify-center shadow-sm">
+      <div className="bg-card border border-border rounded-2xl p-6 grid md:grid-cols-[auto,1fr] gap-6 items-start">
+        <div className="w-56 h-56 bg-background rounded-2xl border border-border p-3 flex items-center justify-center shadow-sm">
           {loading || !previewUrl ? (
             <Loader2 className="text-muted-foreground animate-spin" size={28} />
           ) : (
@@ -214,23 +230,57 @@ export default function CommuneQrCode({ communeName, codePostal }: Props) {
 
         <div className="space-y-4">
           <div>
-            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-              URL pointée
+            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">URL pointée</div>
+            <code className="block text-xs text-foreground bg-muted rounded-lg px-3 py-2 break-all">{trackingUrl}</code>
+            <p className="text-xs text-muted-foreground mt-2">Chaque scan est compté dans vos statistiques.</p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Couleur du QR code</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="color"
+                value={isValidHex(colorInput) && colorInput.length === 7 ? colorInput : "#0a0a0a"}
+                onChange={(e) => setColorInput(e.target.value)}
+                className="h-10 w-12 rounded-lg border border-border bg-background cursor-pointer"
+                aria-label="Choisir une couleur"
+              />
+              <input
+                type="text"
+                value={colorInput}
+                onChange={(e) => setColorInput(e.target.value)}
+                className="h-10 w-28 rounded-lg border border-border bg-background px-3 text-sm font-mono"
+                aria-label="Code couleur"
+              />
+              <button onClick={applyColor} className="h-10 px-4 rounded-xl bg-secondary text-foreground text-sm font-semibold hover:bg-secondary/80">
+                Appliquer
+              </button>
+              <button
+                onClick={() => {
+                  setColorInput("#0a0a0a");
+                  setColor("#0a0a0a");
+                }}
+                className="h-10 px-3 rounded-xl text-sm text-muted-foreground hover:text-foreground"
+              >
+                Noir
+              </button>
             </div>
-            <code className="block text-xs text-foreground bg-muted rounded-lg px-3 py-2 break-all">
-              {trackingUrl}
-            </code>
-            <p className="text-xs text-muted-foreground mt-2">
-              Chaque scan est tracé dans vos statistiques (source : QR&nbsp;code).
-            </p>
+            <label className={`flex items-center gap-2 text-sm ${logoUrl ? "text-foreground" : "text-muted-foreground"}`}>
+              <input type="checkbox" checked={withLogo} disabled={!logoUrl || !logo} onChange={(e) => setWithLogo(e.target.checked)} />
+              Logo de la ville au centre
+              {!logoUrl && <span className="text-xs">(chargez un logo dans « Personnalisation »)</span>}
+            </label>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <DownloadButton onClick={downloadPng} label="PNG" />
-            <DownloadButton onClick={downloadPngTransparent} label="PNG transparent" />
-            <DownloadButton onClick={downloadJpg} label="JPG" />
+            <DownloadButton onClick={() => downloadRaster("png")} label="PNG" />
+            <DownloadButton onClick={() => downloadRaster("png-t")} label="PNG transparent" />
+            <DownloadButton onClick={() => downloadRaster("jpg")} label="JPG" />
             <DownloadButton onClick={downloadSvg} label="SVG" />
-            <DownloadButton onClick={downloadPdf} label="PDF" />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <DownloadButton onClick={() => downloadPoster("A4")} label="Affichette A4 (PDF)" icon="doc" busy={busy === "A4"} />
+            <DownloadButton onClick={() => downloadPoster("A5")} label="Affichette A5 (PDF)" icon="doc" busy={busy === "A5"} />
           </div>
         </div>
       </div>
@@ -238,14 +288,9 @@ export default function CommuneQrCode({ communeName, codePostal }: Props) {
       <div className="bg-card border border-border rounded-2xl p-6">
         <h2 className="font-semibold text-foreground mb-2">Conseils d'utilisation</h2>
         <ul className="text-sm text-muted-foreground space-y-1.5 list-disc pl-5">
-          <li>
-            <strong className="text-foreground">PNG / JPG</strong> : pour impression
-            classique (flyers, affiches, journal municipal).
-          </li>
-          <li>
-            <strong className="text-foreground">SVG / PDF</strong> : pour impression
-            grand format (panneaux, kakemonos) sans perte de qualité.
-          </li>
+          <li><strong className="text-foreground">Affichettes A4 / A5</strong> : prêtes à imprimer (vitrines, panneaux d'affichage, accueil).</li>
+          <li><strong className="text-foreground">PNG / JPG</strong> : flyers, affiches, journal municipal.</li>
+          <li><strong className="text-foreground">SVG</strong> : grand format (panneaux, kakemonos) sans perte de qualité.</li>
           <li>Taille minimale recommandée à l'impression : 3 × 3 cm.</li>
           <li>Conservez un contour blanc autour du QR code pour garantir la lecture.</li>
         </ul>
@@ -254,13 +299,15 @@ export default function CommuneQrCode({ communeName, codePostal }: Props) {
   );
 }
 
-function DownloadButton({ onClick, label }: { onClick: () => void; label: string }) {
+function DownloadButton({ onClick, label, icon, busy }: { onClick: () => void; label: string; icon?: "doc"; busy?: boolean }) {
+  const Icon = icon === "doc" ? FileText : Download;
   return (
     <button
       onClick={onClick}
-      className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-primary/25 hover:shadow-xl transition-all"
+      disabled={busy}
+      className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-primary/25 hover:shadow-xl transition-all disabled:opacity-70"
     >
-      <Download size={15} />
+      {busy ? <Loader2 size={15} className="animate-spin" /> : <Icon size={15} />}
       {label}
     </button>
   );

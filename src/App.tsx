@@ -46,6 +46,8 @@ const App = () => (
               }
             />
             <Route path="/admin/communes" element={<AdminCommunes />} />
+            {/* Town pages (static routes above always win over this param route) */}
+            <Route path="/:slug" element={<Index />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
