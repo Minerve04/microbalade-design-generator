@@ -431,7 +431,11 @@ def main():
         surface_m2 = (c.get("surface") or 1000) * 10000
         radius = int(max(1500, min(10000, math.sqrt(surface_m2 / math.pi) * 1.3)))
         wiki = fetch_wikipedia(c, radius)
-        places = merge_places(mh.get(c["code"], []), wiki, c["nom"])
+        centre = (c["centre"]["coordinates"][1], c["centre"]["coordinates"][0])
+        # écarte les monuments mal géolocalisés dans la base (hors commune et à plus de 3 km du centre)
+        mh_c = [m for m in mh.get(c["code"], [])
+                if in_contour(m["lon"], m["lat"], c.get("contour")) or haversine(centre, (m["lat"], m["lon"])) < 3000]
+        places = merge_places(mh_c, wiki, c["nom"])
         rich = [p for p in places if richness(p)]
         # tri : monuments classés, puis lieux avec histoire, puis le reste
         rich.sort(key=lambda p: (not p["classe"], not (p["has_hist"] or p.get("wiki")), p["nom"]))
