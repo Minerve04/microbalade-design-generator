@@ -9,7 +9,7 @@ const Index = () => {
   const [duration, setDuration] = useState(30);
   const [loading, setLoading] = useState(false);
 
-  const handleGenerate = async (data: { location: string; duration: number; interests: string[] }) => {
+  const handleGenerate = async (data: { location: string; duration: number; interests: string[]; lat?: number; lon?: number }) => {
     if (!data.location.trim()) {
       toast.error("Veuillez indiquer votre localisation");
       return;
