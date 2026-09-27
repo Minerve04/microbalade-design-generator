@@ -392,7 +392,7 @@ def partner_slugs(supabase_url: str | None, anon: str | None):
             headers={"apikey": anon, "Authorization": f"Bearer {anon}", "User-Agent": UA})
         with urllib.request.urlopen(req, timeout=20) as r:
             rows = json.load(r)
-        return {norm(x["nom"]): x["slug"] for x in rows if x.get("slug")}
+        return {x["slug"]: x["slug"] for x in rows if x.get("slug")}
     except Exception as e:  # noqa: BLE001
         print(f"  ! partenaires indisponibles : {e}", file=sys.stderr)
         return {}
@@ -453,7 +453,7 @@ def main():
             key=lambda x: haversine(here, (x["centre"]["coordinates"][1], x["centre"]["coordinates"][0])),
         )[:8]
         html_doc = render_commune(c, c["places"], c["start"], neighbors, dept_name, dept_slug,
-                                  partners.get(norm(c["nom"])))
+                                  partners.get(c["slug"]))
         with open(os.path.join(out_dir, f"{c['slug']}.html"), "w", encoding="utf-8") as f:
             f.write(html_doc)
 
