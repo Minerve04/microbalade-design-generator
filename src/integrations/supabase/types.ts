@@ -377,6 +377,51 @@ export type Database = {
         }
         Relationships: []
       }
+      pilot_requests: {
+        Row: {
+          code_postal: string | null
+          commune_nom: string
+          contact_nom: string
+          created_at: string
+          email: string
+          fonction: string
+          id: string
+          ip: string | null
+          message: string | null
+          population: number | null
+          status: string
+          telephone: string | null
+        }
+        Insert: {
+          code_postal?: string | null
+          commune_nom: string
+          contact_nom: string
+          created_at?: string
+          email: string
+          fonction: string
+          id?: string
+          ip?: string | null
+          message?: string | null
+          population?: number | null
+          status?: string
+          telephone?: string | null
+        }
+        Update: {
+          code_postal?: string | null
+          commune_nom?: string
+          contact_nom?: string
+          created_at?: string
+          email?: string
+          fonction?: string
+          id?: string
+          ip?: string | null
+          message?: string | null
+          population?: number | null
+          status?: string
+          telephone?: string | null
+        }
+        Relationships: []
+      }
       statistiques_recherches: {
         Row: {
           code_postal: string | null
@@ -531,6 +576,7 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      expire_pilots: { Args: never; Returns: number }
       get_commune_page: { Args: { p_slug: string }; Returns: Json }
       get_my_commune_traffic: {
         Args: { p_from: string; p_to: string }
