@@ -40,9 +40,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ChorusRequestDialog } from "@/components/ChorusRequestDialog";
 import logo from "@/assets/logo.png";
 import CommuneQrCode from "@/components/CommuneQrCode";
-import { QrCode } from "lucide-react";
+import { QrCode, MapPinned } from "lucide-react";
+import CommunePois from "@/components/CommunePois";
 
-type TabKey = "overview" | "stats" | "config" | "qrcode" | "profile";
+type TabKey = "overview" | "stats" | "config" | "pois" | "qrcode" | "profile";
 
 interface CommuneProfile {
   id: string;
@@ -80,6 +81,7 @@ const NAV: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "overview", label: "Vue d'ensemble", icon: LayoutDashboard },
   { key: "stats", label: "Données & Statistiques", icon: BarChart3 },
   { key: "config", label: "Configuration", icon: Settings },
+  { key: "pois", label: "Mes lieux", icon: MapPinned },
   { key: "qrcode", label: "QR code", icon: QrCode },
   { key: "profile", label: "Profil & Facturation", icon: UserCircle2 },
 ];
@@ -846,6 +848,14 @@ export default function CommuneDashboard() {
                 Enregistrer les modifications
               </button>
             </section>
+          )}
+
+          {tab === "pois" && user && (
+            <CommunePois
+              userId={user.id}
+              codePostal={profile?.code_postal ?? null}
+              communeName={profile?.nom_collectivite ?? ""}
+            />
           )}
 
           {tab === "qrcode" && (
