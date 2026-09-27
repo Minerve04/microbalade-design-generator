@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_login_attempts: {
+        Row: {
+          created_at: string
+          id: string
+          ip: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ip: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ip?: string
+        }
+        Relationships: []
+      }
       commune_profiles: {
         Row: {
           abonnement_label: string
@@ -385,6 +403,16 @@ export type Database = {
           msg_id: number
           read_ct: number
         }[]
+      }
+      request_chorus: {
+        Args: {
+          p_adresse: string
+          p_code_service: string
+          p_email_compta: string
+          p_numero_engagement: string
+          p_siret: string
+        }
+        Returns: undefined
       }
     }
     Enums: {
