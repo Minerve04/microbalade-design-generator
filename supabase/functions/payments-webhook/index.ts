@@ -64,7 +64,8 @@ async function upsertSubscriptionRow(subscription: any, env: StripeEnv) {
     { onConflict: "stripe_subscription_id" }
   );
 
-  // Mirror on commune_profiles (drives logo visibility + dashboard gating)
+  // Mirror on commune_profiles ONLY for live payments (sandbox must never activate a real account)
+  if (env !== "live") return userId;
   await getSupabase()
     .from("commune_profiles")
     .update({
@@ -76,7 +77,8 @@ async function upsertSubscriptionRow(subscription: any, env: StripeEnv) {
   return userId;
 }
 
-async function markCommuneStatusBySubscriptionId(stripeSubscriptionId: string, status: string) {
+async function markCommuneStatusBySubscriptionId(stripeSubscriptionId: string, status: string, env: StripeEnv) {
+  if (env !== "live") return;
   const { data } = await getSupabase()
     .from("subscriptions")
     .select("user_id")
@@ -105,20 +107,20 @@ async function handleWebhook(req: Request, env: StripeEnv) {
         .update({ status: "canceled", updated_at: new Date().toISOString() })
         .eq("stripe_subscription_id", sub.id)
         .eq("environment", env);
-      await markCommuneStatusBySubscriptionId(sub.id, "canceled");
+      await markCommuneStatusBySubscriptionId(sub.id, "canceled", env);
       break;
     }
     case "invoice.paid":
     case "invoice.payment_succeeded": {
       const invoice = event.data.object;
       const subId = invoice.subscription;
-      if (subId) await markCommuneStatusBySubscriptionId(subId, "active");
+      if (subId) await markCommuneStatusBySubscriptionId(subId, "active", env);
       break;
     }
     case "invoice.payment_failed": {
       const invoice = event.data.object;
       const subId = invoice.subscription;
-      if (subId) await markCommuneStatusBySubscriptionId(subId, "past_due");
+      if (subId) await markCommuneStatusBySubscriptionId(subId, "past_due", env);
       break;
     }
     default:

@@ -48,8 +48,9 @@ const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
         .select("nom, logo_url, lien_action")
         .eq("code_postal", cp)
         .eq("active", true)
-        .maybeSingle();
-      if (!cancelled && !error && data) setPartner(data as PartnerCommune);
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      if (!cancelled && !error && data && data[0]) setPartner(data[0] as PartnerCommune);
     })();
     return () => {
       cancelled = true;

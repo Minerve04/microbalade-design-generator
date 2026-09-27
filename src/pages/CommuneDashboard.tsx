@@ -98,8 +98,8 @@ export default function CommuneDashboard() {
   const { isActive, status, isPendingMandat, loading: loadingSub } = useCommuneSubscription();
   const [tab, setTab] = useState<TabKey>("overview");
   // "locked" : abonnement cassé (impayé, annulé…) — pas pour un compte jamais payé.
-  const locked = !loadingSub && !isActive && status !== "trialing";
-  const neverPaid = !loadingSub && status === "trialing";
+  const locked = !loadingSub && !isActive && status !== "trialing" && status !== "incomplete";
+  const neverPaid = !loadingSub && (status === "trialing" || status === "incomplete");
   const { openCheckout, closeCheckout, isOpen: checkoutOpen, checkoutElement } = useStripeCheckout();
   const [chorusOpen, setChorusOpen] = useState(false);
 
@@ -284,10 +284,19 @@ export default function CommuneDashboard() {
 
   const handleSaveConfig = async () => {
     if (!profile) return;
+    if (lienAction.trim()) {
+      try {
+        const u = new URL(lienAction.trim());
+        if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error();
+      } catch {
+        toast.error("Lien invalide : utilisez une adresse http(s)://");
+        return;
+      }
+    }
     setSaving(true);
     const { error } = await supabase
       .from("commune_profiles")
-      .update({ lien_action: lienAction || null, code_postal: codePostal || null })
+      .update({ lien_action: lienAction.trim() || null, code_postal: codePostal || null })
       .eq("user_id", profile.user_id);
     setSaving(false);
     if (error) {
@@ -887,7 +896,7 @@ export default function CommuneDashboard() {
                       past_due: { label: "Paiement en retard", cls: "text-amber-700 bg-amber-100" },
                       unpaid: { label: "Impayé", cls: "text-destructive bg-destructive/10" },
                       canceled: { label: "Annulé", cls: "text-destructive bg-destructive/10" },
-                      incomplete: { label: "À finaliser", cls: "text-amber-700 bg-amber-100" },
+                      incomplete: { label: "Inactif — paiement requis", cls: "text-destructive bg-destructive/10" },
                     };
                     const s = map[status ?? "trialing"] ?? map.trialing;
                     return (

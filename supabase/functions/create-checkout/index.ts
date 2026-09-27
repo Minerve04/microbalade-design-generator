@@ -63,7 +63,14 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (!returnUrl || !returnUrl.startsWith("http")) {
+    const ALLOWED_ORIGINS = [
+      "https://microbalade.fr",
+      "https://www.microbalade.fr",
+      "https://id-preview--f19b9e2b-d115-48c7-beca-a54a2bc0ff1a.lovable.app",
+    ];
+    let returnOrigin = "";
+    try { returnOrigin = returnUrl ? new URL(returnUrl).origin : ""; } catch { returnOrigin = ""; }
+    if (!returnUrl || !ALLOWED_ORIGINS.includes(returnOrigin)) {
       return new Response(JSON.stringify({ error: "Invalid returnUrl" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -59,23 +59,13 @@ export function ChorusRequestDialog({
     }
     setSubmitting(true);
     try {
-      const now = new Date();
-      const due = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-      const { error } = await supabase
-        .from("commune_profiles")
-        .update({
-          siret: siret.replace(/\s/g, ""),
-          numero_engagement: numeroEngagement || null,
-          code_service_chorus: codeService || null,
-          adresse_facturation: adresseFacturation,
-          email_comptabilite: emailCompta,
-          mode_paiement: "chorus",
-          status_abonnement: "en_attente_mandat",
-          chorus_status: "pending",
-          chorus_requested_at: now.toISOString(),
-          chorus_due_date: due.toISOString().slice(0, 10),
-        })
-        .eq("user_id", userId);
+      const { error } = await supabase.rpc("request_chorus", {
+        p_siret: siret.replace(/\s/g, ""),
+        p_numero_engagement: numeroEngagement || "",
+        p_code_service: codeService || "",
+        p_adresse: adresseFacturation,
+        p_email_compta: emailCompta,
+      });
       if (error) throw error;
       toast.success("Demande enregistrée — votre compte est activé. Vous recevrez la facture par email.");
       onSuccess?.();
