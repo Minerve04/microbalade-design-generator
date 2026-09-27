@@ -161,7 +161,7 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
           </p>
         </div>
 
-        <div className="glass-card rounded-2xl p-4">
+        <div className="glass-card relative z-30 rounded-2xl p-4">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
             Localisation
           </h2>
@@ -185,7 +185,7 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
                 <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground animate-spin" />
               )}
               {showSuggestions && suggestions.length > 0 && (
-                <ul className="absolute left-0 right-0 top-full mt-2 bg-popover border border-border rounded-xl shadow-lg overflow-hidden z-20 max-h-64 overflow-y-auto">
+                <ul className="absolute left-0 right-0 top-full mt-2 bg-popover border border-border rounded-xl shadow-lg overflow-hidden z-40 max-h-64 overflow-y-auto">
                   {suggestions.map((s, i) => (
                     <li key={i}>
                       <button
