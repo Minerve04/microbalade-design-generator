@@ -66,11 +66,22 @@ async function upsertSubscriptionRow(subscription: any, env: StripeEnv) {
 
   // Mirror on commune_profiles ONLY for live payments (sandbox must never activate a real account)
   if (env !== "live") return userId;
+  const TIERS: Record<string, { label: string; prix: number }> = {
+    commune_village_year: { label: "Abonnement Village", prix: 300 },
+    commune_petite_ville_year: { label: "Abonnement Petite ville", prix: 600 },
+    commune_ville_moyenne_year: { label: "Abonnement Ville moyenne", prix: 1500 },
+    commune_grande_ville_year: { label: "Abonnement Grande ville", prix: 3000 },
+    commune_metropole_year: { label: "Abonnement Métropole", prix: 6000 },
+    commune_metropole_xl_year: { label: "Abonnement Grande métropole", prix: 10000 },
+  };
+  const commune = mapToCommuneStatus(subscription.status);
+  const tier = commune === "active" ? TIERS[priceId] : undefined;
   await getSupabase()
     .from("commune_profiles")
     .update({
-      status_abonnement: mapToCommuneStatus(subscription.status),
+      status_abonnement: commune,
       stripe_customer_id: subscription.customer,
+      ...(tier && { abonnement_label: tier.label, abonnement_prix_annuel: tier.prix }),
     })
     .eq("user_id", userId);
 

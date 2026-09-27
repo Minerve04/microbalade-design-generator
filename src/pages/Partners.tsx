@@ -1,14 +1,16 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { motion } from "framer-motion";
-import { ArrowLeft, Landmark, BarChart3, Store, Loader2, Search, ArrowRight, X, CreditCard, QrCode, Mail } from "lucide-react";
+import { ArrowLeft, Landmark, BarChart3, Store, Loader2, Search, ArrowRight, X, CreditCard, QrCode, Mail, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { Slider } from "@/components/ui/slider";
 import logo from "@/assets/logo.png";
 import { useAuth } from "@/hooks/useAuth";
 import { useStripeCheckout } from "@/hooks/useStripeCheckout";
 import { getCommunePriceForPopulation } from "@/lib/stripe";
+
+type GeoCommune = { nom: string; population?: number; codesPostaux?: string[] };
 
 const SLIDER_MAX = 1_000_001; // sentinel for "1 million et plus"
 
@@ -36,12 +38,18 @@ const benefits = [
     icon: BarChart3,
     title: "Statistiques de fréquentation",
     description:
-      "Accédez à un tableau de bord détaillé : nombre de balades générées, parcours plébiscités, horaires de pointe, profils des visiteurs. Pilotez votre stratégie touristique avec des données concrètes.",
+      "Un tableau de bord réel : nombre de balades générées, lieux et rues les plus traversés, durées demandées, évolution mensuelle, et export CSV de vos données.",
   },
   {
     icon: Store,
-    title: "Zéro infrastructure\nZéro maintenance\nZéro publicité\n",
-    description: "​",
+    title: "Zéro infrastructure, zéro maintenance, zéro publicité",
+    description: "Pas d'application à installer : un QR code suffit. Aucune publicité montrée aux habitants.",
+  },
+  {
+    icon: MapPin,
+    title: "Vos lieux, vos textes",
+    description:
+      "Depuis l'onglet « Mes lieux », la commune fournit ses lieux et ses textes validés. Les balades s'appuient dessus, et les sources sont affichées aux visiteurs.",
   },
 ];
 
@@ -54,7 +62,48 @@ const Partners = () => {
 
   const pricing = useMemo(() => getPricing(population), [population]);
 
+  const [suggestions, setSuggestions] = useState<GeoCommune[]>([]);
+  const [selectedCommune, setSelectedCommune] = useState<{ nom: string; codePostal?: string } | null>(null);
+
+  useEffect(() => {
+    const q = communeQuery.trim();
+    if (q.length < 2 || selectedCommune?.nom === q) {
+      setSuggestions([]);
+      return;
+    }
+    const ctrl = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(
+          `https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(q)}&fields=nom,population,codesPostaux&boost=population&limit=5`,
+          { signal: ctrl.signal }
+        );
+        if (r.ok) setSuggestions(await r.json());
+      } catch {
+        /* ignore */
+      }
+    }, 250);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [communeQuery, selectedCommune]);
+
+  const pickCommune = (c: GeoCommune) => {
+    const pop = Math.max(1000, Math.min(SLIDER_MAX, c.population ?? 1000));
+    setPopulation(pop);
+    setCommuneQuery(c.nom);
+    const sel = { nom: c.nom, codePostal: c.codesPostaux?.[0] };
+    setSelectedCommune(sel);
+    sessionStorage.setItem("pendingCommune", JSON.stringify(sel));
+    setSuggestions([]);
+  };
+
   const handleSubscribe = () => {
+    if (population >= 250_000) {
+      navigate(`/contact?sujet=${encodeURIComponent("Devis métropole")}`);
+      return;
+    }
     const { priceId } = getCommunePriceForPopulation(population);
     if (!user) {
       toast.info("Connectez-vous pour finaliser l'abonnement");
@@ -126,9 +175,9 @@ const Partners = () => {
         <section className="space-y-8">
           <div className="text-center space-y-2">
             <h2 className="text-2xl md:text-3xl font-bold text-foreground">Pourquoi devenir partenaire ?</h2>
-            <p className="text-muted-foreground">Trois leviers concrets pour votre commune.</p>
+            <p className="text-muted-foreground">Quatre leviers concrets pour votre commune.</p>
           </div>
-          <div className="grid md:grid-cols-3 gap-5">
+          <div className="grid sm:grid-cols-2 gap-5">
             {benefits.map((b, i) => (
               <motion.article
                 key={b.title}
@@ -244,10 +293,34 @@ const Partners = () => {
                 <input
                   type="text"
                   value={communeQuery}
-                  onChange={(e) => setCommuneQuery(e.target.value)}
+                  onChange={(e) => {
+                    setCommuneQuery(e.target.value);
+                    setSelectedCommune(null);
+                  }}
                   placeholder="Rechercher ma commune"
+                  autoComplete="off"
                   className="w-full bg-secondary rounded-xl pl-11 pr-4 py-3.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
+                {suggestions.length > 0 && (
+                  <ul className="absolute left-0 right-0 top-full mt-1 z-40 bg-card border border-border rounded-xl shadow-lg overflow-hidden">
+                    {suggestions.map((c) => (
+                      <li key={`${c.nom}-${c.codesPostaux?.[0]}`}>
+                        <button
+                          type="button"
+                          onClick={() => pickCommune(c)}
+                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-muted flex justify-between gap-3"
+                        >
+                          <span className="text-foreground font-medium">
+                            {c.nom} <span className="text-muted-foreground font-normal">{c.codesPostaux?.[0]}</span>
+                          </span>
+                          <span className="text-muted-foreground text-xs">
+                            {(c.population ?? 0).toLocaleString("fr-FR")} hab.
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
               <button
                 type="button"
@@ -258,7 +331,7 @@ const Partners = () => {
                 <ArrowRight size={18} />
               </button>
               <p className="text-[11px] text-muted-foreground text-center">
-                Paiement sécurisé par carte · Sans engagement de durée
+                Abonnement annuel · Paiement par carte ou mandat administratif (Chorus Pro)
               </p>
             </div>
           </div>

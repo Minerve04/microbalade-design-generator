@@ -34,7 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommuneSubscription } from "@/hooks/useCommuneSubscription";
 import { AlertTriangle, Lock, FileText as FileTextIcon } from "lucide-react";
-import { getStripeEnvironment, getCommunePriceIdFromAmount } from "@/lib/stripe";
+import { getStripeEnvironment, getCommunePriceIdFromAmount, COMMUNE_TIERS, VALID_PRICE_IDS } from "@/lib/stripe";
 import { useStripeCheckout } from "@/hooks/useStripeCheckout";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ChorusRequestDialog } from "@/components/ChorusRequestDialog";
@@ -114,13 +114,29 @@ export default function CommuneDashboard() {
   const { openCheckout, closeCheckout, isOpen: checkoutOpen, checkoutElement } = useStripeCheckout();
   const [chorusOpen, setChorusOpen] = useState(false);
 
-  const handlePay = () => {
+  const handlePay = (forcedPriceId?: string) => {
     const amount = profile?.abonnement_prix_annuel ?? 600;
-    const priceId = getCommunePriceIdFromAmount(amount);
+    const priceId = forcedPriceId ?? getCommunePriceIdFromAmount(amount);
     openCheckout({
       priceId,
       returnUrl: `${window.location.origin}/dashboard/commune?checkout=success`,
     });
+  };
+
+  const [changingTier, setChangingTier] = useState(false);
+  const changeTier = async (priceId: string) => {
+    setChangingTier(true);
+    const { error } = await supabase.rpc("set_pending_tier", { p_lookup_key: priceId });
+    if (error) {
+      toast.error(error.message);
+    } else {
+      const t = COMMUNE_TIERS.find((x) => x.priceId === priceId);
+      if (t && profile) {
+        setProfile({ ...profile, abonnement_prix_annuel: t.amountEur, abonnement_label: `Abonnement ${t.label.split(" (")[0]}` });
+      }
+      toast.success("Formule mise à jour");
+    }
+    setChangingTier(false);
   };
 
   // Force user onto billing tab only when subscription is broken
@@ -150,6 +166,24 @@ export default function CommuneDashboard() {
   // Form state
   const [lienAction, setLienAction] = useState("");
   const [codePostal, setCodePostal] = useState("");
+
+  // Palier en attente (choisi sur /partenaires) : ouvrir directement le paiement au bon palier.
+  const autoPayDone = useRef(false);
+  useEffect(() => {
+    if (autoPayDone.current || !profile || loadingSub || !neverPaid) return;
+    const qp = new URLSearchParams(window.location.search).get("pay");
+    const pending = qp || sessionStorage.getItem("pendingCheckoutPriceId");
+    if (!pending || !VALID_PRICE_IDS.includes(pending) || pending === "commune_metropole_xl_year") return;
+    autoPayDone.current = true;
+    sessionStorage.removeItem("pendingCheckoutPriceId");
+    sessionStorage.removeItem("pendingCommune");
+    (async () => {
+      if (getCommunePriceIdFromAmount(profile.abonnement_prix_annuel) !== pending) await changeTier(pending);
+      setTab("profile");
+      handlePay(pending);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, loadingSub, neverPaid]);
 
   useEffect(() => {
     if (!user) return;
@@ -482,7 +516,7 @@ export default function CommuneDashboard() {
                   <FileTextIcon size={16} /> Bon de commande / Chorus Pro
                 </button>
                 <button
-                  onClick={handlePay}
+                  onClick={() => handlePay()}
                   className="inline-flex items-center justify-center bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:opacity-90 transition"
                 >
                   Payer par carte
@@ -571,7 +605,7 @@ export default function CommuneDashboard() {
                       <FileTextIcon size={16} /> Bon de commande
                     </button>
                     <button
-                      onClick={handlePay}
+                      onClick={() => handlePay()}
                       className="inline-flex items-center justify-center bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:opacity-90 transition"
                     >
                       Payer par carte
@@ -915,6 +949,25 @@ export default function CommuneDashboard() {
                     );
                   })()}
                 </div>
+                {neverPaid && (
+                  <div className="space-y-2 pt-2 border-t border-border">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Changer de formule
+                    </label>
+                    <select
+                      value={getCommunePriceIdFromAmount(profile?.abonnement_prix_annuel ?? 600)}
+                      disabled={changingTier}
+                      onChange={(e) => changeTier(e.target.value)}
+                      className="w-full bg-secondary rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    >
+                      {COMMUNE_TIERS.map((t) => (
+                        <option key={t.priceId} value={t.priceId}>
+                          {t.label} — {t.amountEur.toLocaleString("fr-FR")} € / an
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div className="bg-card border border-border rounded-2xl p-6 space-y-4">

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { ArrowLeft, Send, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
@@ -7,7 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/logo.png";
 
 const Contact = () => {
-  const [form, setForm] = useState({ name: "", role: "", organization: "", email: "", phone: "", message: "" });
+  const [params] = useSearchParams();
+  const sujet = (params.get("sujet") ?? "").slice(0, 80);
+  const [form, setForm] = useState({ name: "", role: "", organization: "", email: "", phone: "", message: sujet ? `${sujet} : ` : "" });
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
