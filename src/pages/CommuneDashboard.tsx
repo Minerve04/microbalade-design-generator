@@ -34,7 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommuneSubscription } from "@/hooks/useCommuneSubscription";
 import { AlertTriangle, Lock, FileText as FileTextIcon } from "lucide-react";
-import { getStripeEnvironment, getCommunePriceIdFromAmount, COMMUNE_TIERS, VALID_PRICE_IDS } from "@/lib/stripe";
+import { getStripeEnvironment, getCommunePriceIdFromAmount, getCommunePriceForPopulation, COMMUNE_TIERS, VALID_PRICE_IDS } from "@/lib/stripe";
 import { useStripeCheckout } from "@/hooks/useStripeCheckout";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ChorusRequestDialog } from "@/components/ChorusRequestDialog";
@@ -148,6 +148,33 @@ export default function CommuneDashboard() {
   const [profile, setProfile] = useState<CommuneProfile | null>(null);
   const [searches, setSearches] = useState<SearchRow[]>([]);
   const [loadingProfile, setLoadingProfile] = useState(true);
+
+  // Pilote gratuit 3 mois
+  const isPilot =
+    status === "active" && profile?.abonnement_label === "Pilote gratuit 3 mois" && (profile?.abonnement_prix_annuel ?? 0) === 0;
+  const [pilotTier, setPilotTier] = useState<string>("");
+  const [pilotPicker, setPilotPicker] = useState(false);
+  const upgradeFromPilot = async () => {
+    try {
+      const q = new URLSearchParams({ nom: (profile?.nom_collectivite ?? "").replace(/^(mairie|ville|commune)\s+(de\s+|d')?/i, ""), fields: "population", boost: "population", limit: "1" });
+      if (profile?.code_postal) q.set("codePostal", profile.code_postal);
+      const r = await fetch(`https://geo.api.gouv.fr/communes?${q}`);
+      const pop = (await r.json())?.[0]?.population;
+      if (typeof pop === "number") {
+        const t = getCommunePriceForPopulation(pop);
+        if (t.priceId === "commune_metropole_xl_year") {
+          navigate("/contact?sujet=Devis métropole");
+          return;
+        }
+        handlePay(t.priceId);
+        return;
+      }
+    } catch {
+      /* fall back to picker */
+    }
+    setPilotPicker(true);
+  };
+
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -541,6 +568,49 @@ export default function CommuneDashboard() {
                   Payer par carte
                 </button>
               </div>
+            </div>
+          )}
+          {isPilot && (
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3 bg-primary/10 border border-primary/30 rounded-2xl p-4">
+              <div className="text-sm flex-1">
+                <div className="font-semibold text-foreground">
+                  Pilote gratuit jusqu'au{" "}
+                  {profile?.abonnement_renouvellement ? new Date(profile.abonnement_renouvellement).toLocaleDateString("fr-FR") : "—"}
+                </div>
+                <p className="text-muted-foreground mt-1">Toutes les fonctionnalités sont ouvertes pendant le pilote.</p>
+                {pilotPicker && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <select
+                      value={pilotTier}
+                      onChange={(e) => setPilotTier(e.target.value)}
+                      className="bg-background rounded-xl px-3 py-2 text-sm border border-border"
+                      aria-label="Formule"
+                    >
+                      <option value="">Choisir une formule…</option>
+                      {COMMUNE_TIERS.map((t) => (
+                        <option key={t.priceId} value={t.priceId}>
+                          {t.label} — {t.amountEur.toLocaleString("fr-FR")} € / an
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      disabled={!pilotTier}
+                      onClick={() => handlePay(pilotTier)}
+                      className="bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm disabled:opacity-60"
+                    >
+                      Payer
+                    </button>
+                  </div>
+                )}
+              </div>
+              {!pilotPicker && (
+                <button
+                  onClick={upgradeFromPilot}
+                  className="shrink-0 bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2.5 text-sm shadow-lg shadow-primary/25"
+                >
+                  Passer à l'abonnement
+                </button>
+              )}
             </div>
           )}
           {isPendingMandat && (

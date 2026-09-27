@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import AdminPilots from "@/components/AdminPilots";
 import { toast } from "sonner";
 import { Trash2, Plus, Save, Upload, Download, Loader2 } from "lucide-react";
 
@@ -300,6 +301,7 @@ const AdminCommunes = () => {
           <TabsTrigger value="chorus">Chorus Pro</TabsTrigger>
           <TabsTrigger value="stats">Statistiques</TabsTrigger>
           <TabsTrigger value="pois">Lieux</TabsTrigger>
+          <TabsTrigger value="pilots">Pilotes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="communes" className="mt-6">
@@ -434,6 +436,10 @@ const AdminCommunes = () => {
               </Card>
             ))}
           </div>
+        </TabsContent>
+
+        <TabsContent value="pilots" className="mt-6">
+          <AdminPilots call={call} />
         </TabsContent>
 
         <TabsContent value="pois" className="mt-6">
