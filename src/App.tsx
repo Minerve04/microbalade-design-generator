@@ -15,6 +15,7 @@ import CommuneDashboard from "./pages/CommuneDashboard.tsx";
 import AdminCommunes from "./pages/AdminCommunes.tsx";
 import CheckoutReturn from "./pages/CheckoutReturn.tsx";
 import Contact from "./pages/Contact.tsx";
+import PilotRequest from "./pages/PilotRequest.tsx";
 import Unsubscribe from "./pages/Unsubscribe.tsx";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/partenaires" element={<Partners />} />
             <Route path="/partenaires/connexion" element={<PartnerLogin />} />
             <Route path="/partenaires/paiement-confirme" element={<CheckoutReturn />} />
+            <Route path="/partenaires/pilote" element={<PilotRequest />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route

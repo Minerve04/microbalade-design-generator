@@ -207,7 +207,8 @@ const Partners = () => {
             {[
               {
                 icon: CreditCard,
-                title: "1. Choisissez votre offre",
+                title: "1. Choisissez votre offre ou demandez un pilote gratuit",
+                pilot: true,
                 description:
                   "Estimez le tarif de votre abonnement annuel selon le nombre d'habitants de votre commune grâce à notre curseur dynamique et activez vos services en quelques clics via notre paiement sécurisé Stripe.",
               },
@@ -330,6 +331,12 @@ const Partners = () => {
                 {pricing.year >= 10000 ? "Demander un devis" : "S'abonner — " + formatEuro(pricing.year) + " € / an"}
                 <ArrowRight size={18} />
               </button>
+              <Link
+                to="/partenaires/pilote"
+                className="w-full border border-border bg-background text-foreground font-semibold py-3.5 rounded-xl hover:border-primary hover:text-primary transition-all flex items-center justify-center gap-2 text-sm"
+              >
+                Demander un pilote gratuit de 3 mois
+              </Link>
               <p className="text-[11px] text-muted-foreground text-center">
                 Abonnement annuel · Paiement par carte ou mandat administratif (Chorus Pro)
               </p>
