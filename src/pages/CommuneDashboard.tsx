@@ -139,6 +139,16 @@ export default function CommuneDashboard() {
     setChangingTier(false);
   };
 
+  // Force user onto billing tab only when subscription is broken
+  useEffect(() => {
+    if (locked && tab !== "profile") setTab("profile");
+  }, [locked, tab]);
+
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [profile, setProfile] = useState<CommuneProfile | null>(null);
+  const [searches, setSearches] = useState<SearchRow[]>([]);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+
   // Pilote gratuit 3 mois
   const isPilot =
     status === "active" && profile?.abonnement_label === "Pilote gratuit 3 mois" && (profile?.abonnement_prix_annuel ?? 0) === 0;
@@ -165,15 +175,6 @@ export default function CommuneDashboard() {
     setPilotPicker(true);
   };
 
-  // Force user onto billing tab only when subscription is broken
-  useEffect(() => {
-    if (locked && tab !== "profile") setTab("profile");
-  }, [locked, tab]);
-
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [profile, setProfile] = useState<CommuneProfile | null>(null);
-  const [searches, setSearches] = useState<SearchRow[]>([]);
-  const [loadingProfile, setLoadingProfile] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
