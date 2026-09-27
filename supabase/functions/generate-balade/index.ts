@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { collectFacts, findUnsourced, stripSentencesWith, type Fact } from "./facts.ts";
 
-const PROMPT_VERSION = "v3.2-facts";
+const PROMPT_VERSION = "v3.3-facts";
 
 const logSearchStat = async (row: {
   ville: string | null;
@@ -658,6 +658,7 @@ serve(async (req) => {
       originCoord = formatCoord(lonIn, latIn);
     } else {
       const resolved = await geocode(location);
+      if (resolved === "commune_mismatch") return fail("Adresse introuvable dans cette commune. Choisissez une suggestion dans la liste ou utilisez « Me localiser ».");
       if (!resolved) return fail("Impossible de localiser précisément le point de départ.");
       originCoord = resolved.coord;
       originLabel = resolved.label;
