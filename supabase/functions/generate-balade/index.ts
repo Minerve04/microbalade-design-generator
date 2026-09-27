@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { collectFacts, findUnsourced, stripSentencesWith, type Fact } from "./facts.ts";
 
-const PROMPT_VERSION = "v3.2-facts";
+const PROMPT_VERSION = "v3.3-facts";
 
 const logSearchStat = async (row: {
   ville: string | null;
@@ -79,41 +79,73 @@ const toLatLng = (coord: string) => {
 
 const UA = { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" };
 
-// Géocodage : Géoplateforme IGN en priorité, Nominatim en secours.
-const geocode = async (query: string) => {
+// Géocodage : Géoplateforme IGN en priorité, Nominatim (fr) en secours.
+// Si une commune est identifiable dans le texte, seul un résultat dans cette commune est accepté.
+const normTxt = (s: string) =>
+  (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+const geocode = async (query: string): Promise<{ coord: string; label: string } | null | "commune_mismatch"> => {
+  const parts = query.split(",").map((p) => p.trim()).filter(Boolean);
+  const lastPart = parts.length > 1 ? parts[parts.length - 1] : "";
+  const cpInQuery = query.match(/\b\d{5}\b/)?.[0] ?? null;
+  const cityFromComma = normTxt(lastPart.replace(/\b\d{5}\b/g, ""));
+  const qNorm = ` ${normTxt(query)} `;
+
+  let geoFeatures: any[] = [];
   try {
     const r = await fetchWithTimeout(
-      `https://data.geopf.fr/geocodage/search?q=${encodeURIComponent(query)}&limit=1`,
+      `https://data.geopf.fr/geocodage/search?q=${encodeURIComponent(query)}&limit=5`,
       {},
       ORIGIN_SEARCH_TIMEOUT_MS
     );
-    if (r.ok) {
-      const data = await r.json();
-      const f = data?.features?.[0];
-      const c = f?.geometry?.coordinates;
-      if (Array.isArray(c) && Number.isFinite(c[0]) && Number.isFinite(c[1])) {
-        return { coord: formatCoord(c[0], c[1]), label: f.properties?.label || query };
-      }
-    }
+    if (r.ok) geoFeatures = (await r.json())?.features ?? [];
   } catch (e) {
     console.warn("geopf search failed", e);
   }
+
+  // Commune demandée : après la dernière virgule, sinon un nom de city présent dans le texte
+  let wantedCity = cityFromComma;
+  if (!wantedCity) {
+    for (const f of geoFeatures) {
+      const c = normTxt(f?.properties?.city ?? "");
+      if (c && qNorm.includes(` ${c} `)) { wantedCity = c; break; }
+    }
+  }
+  const constrained = Boolean(wantedCity || cpInQuery);
+  const matches = (city: string, pc: string) => {
+    if (cpInQuery && pc === cpInQuery) return true;
+    if (wantedCity && normTxt(city) === wantedCity) return true;
+    return false;
+  };
+
+  for (const f of geoFeatures) {
+    const c = f?.geometry?.coordinates;
+    if (!Array.isArray(c) || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) continue;
+    const p = f.properties ?? {};
+    if (constrained && !matches(p.city ?? "", p.postcode ?? "")) continue;
+    return { coord: formatCoord(c[0], c[1]), label: p.label || query };
+  }
+
   try {
     const r = await fetchWithTimeout(
-      `https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=fr&q=${encodeURIComponent(query)}`,
+      `https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=fr&addressdetails=1&accept-language=fr&q=${encodeURIComponent(query)}`,
       { headers: UA },
       ORIGIN_SEARCH_TIMEOUT_MS
     );
     if (r.ok) {
       const data = await r.json();
-      if (Array.isArray(data) && data[0]?.lat && data[0]?.lon) {
-        return { coord: formatCoord(Number(data[0].lon), Number(data[0].lat)), label: data[0].display_name || query };
+      for (const d of Array.isArray(data) ? data : []) {
+        if (!d?.lat || !d?.lon) continue;
+        const a = d.address ?? {};
+        const city = a.city || a.town || a.village || a.municipality || "";
+        if (constrained && !matches(city, a.postcode ?? "")) continue;
+        return { coord: formatCoord(Number(d.lon), Number(d.lat)), label: d.display_name || query };
       }
     }
   } catch (e) {
     console.warn("nominatim search failed", e);
   }
-  return null;
+  return constrained ? "commune_mismatch" : null;
 };
 
 type ReverseInfo = { label?: string; postcode?: string; city?: string };
@@ -455,7 +487,8 @@ ${factsBlock}
 - Tout nom propre (personne, édifice, institution, ordre religieux), toute date, tout siècle, tout nombre et toute anecdote DOIT provenir d'un fait ci-dessus, et ce fait doit être cité dans "fact_ids".
 - Interdiction de numéros de rue, de dates, de siècles ou de noms qui ne figurent pas dans les faits. Tu peux nommer la rue de l'étape et la ville.
 - Privilégie les faits dont la source est « Ville de … » (lieux validés par la commune), puis Mérimée, puis Wikipédia. Utilise en priorité les faits dont "étape la plus proche" correspond à l'étape.
-- Si une étape n'a aucun fait pertinent : écris une description d'OBSERVATION (ce qu'on voit, matériaux, gabarit des bâtiments, ambiance, conseils d'attention piéton), sans aucun nom propre autre que la rue, sans date ni chiffre. Si tu évoques une époque, reste au conditionnel prudent (« l'alignement de façades en brique évoque plutôt… »). "fact_ids" est alors [].
+- Ne JAMAIS déduire l'histoire, l'usage passé ou l'origine d'un lieu à partir de son nom (rue, impasse, chemin, lieu-dit). Exemple interdit : « Rue de la Draisine, une voie qui fut autrefois un axe pour des véhicules légers ».
+- Si une étape n'a aucun fait pertinent : décris UNIQUEMENT ce qui est observable sur place (bâti, matériaux, végétation, ambiance) et la sécurité du piéton (trottoir, accotement, circulation), sans aucune affirmation historique, sans nom propre autre que la rue, sans date ni chiffre. "fact_ids" est alors [].
 - Chaque étape : 3 à 4 phrases.
 
 INTERDICTIONS DE FORMULES (et toute variante équivalente) :
@@ -625,6 +658,7 @@ serve(async (req) => {
       originCoord = formatCoord(lonIn, latIn);
     } else {
       const resolved = await geocode(location);
+      if (resolved === "commune_mismatch") return fail("Adresse introuvable dans cette commune. Choisissez une suggestion dans la liste ou utilisez « Me localiser ».");
       if (!resolved) return fail("Impossible de localiser précisément le point de départ.");
       originCoord = resolved.coord;
       originLabel = resolved.label;
