@@ -238,6 +238,11 @@ const Partners = () => {
                 </div>
                 <h3 className="text-lg font-semibold text-foreground">{step.title}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
+                {"pilot" in step && step.pilot && (
+                  <Link to="/partenaires/pilote" className="inline-flex text-sm font-semibold text-primary hover:underline">
+                    Demander un pilote gratuit de 3 mois →
+                  </Link>
+                )}
               </motion.article>
             ))}
           </div>
