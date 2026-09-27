@@ -41,9 +41,9 @@ type CandidateLoop = { coords: string[]; route: RouteMeasurement; loopAreaSqMete
 // Google Maps walking pace ≈ 5 km/h ≈ 83 m/min. We align on Google's pace so that
 // what we promise matches what the user sees in Google Maps.
 const EFFECTIVE_WALKING_SPEED_M_PER_MIN = 83;
-const ORIGIN_SEARCH_TIMEOUT_MS = 3500;
-const REVERSE_GEOCODE_TIMEOUT_MS = 1800;
-const ROUTE_TIMEOUT_MS = 5000;
+const ORIGIN_SEARCH_TIMEOUT_MS = 4000;
+const REVERSE_GEOCODE_TIMEOUT_MS = 2500;
+const ROUTE_TIMEOUT_MS = 6000;
 const AI_TIMEOUT_MS = 25000;
 const MAX_ACCEPTABLE_OVERLAP_RATIO = 0.18;
 const MAX_FALLBACK_OVERLAP_RATIO = 0.32;
@@ -74,68 +74,89 @@ const toLatLng = (coord: string) => {
   return `${lat},${lon}`;
 };
 
-const geocode = async (query: string, context?: string) => {
-  const candidates = [query, context ? `${query}, ${context}` : null].filter(Boolean) as string[];
-  for (const candidate of candidates) {
-    try {
-      const response = await fetchWithTimeout(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&accept-language=fr&q=${encodeURIComponent(candidate)}`,
-        { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } },
-        ORIGIN_SEARCH_TIMEOUT_MS
-      );
-      if (!response.ok) continue;
-      const data = await response.json();
-      if (Array.isArray(data) && data[0]?.lat && data[0]?.lon) {
-        return {
-          coord: formatCoord(Number(data[0].lon), Number(data[0].lat)),
-          label: data[0]?.display_name || candidate,
-        };
+const UA = { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" };
+
+// Géocodage : Géoplateforme IGN en priorité, Nominatim en secours.
+const geocode = async (query: string) => {
+  try {
+    const r = await fetchWithTimeout(
+      `https://data.geopf.fr/geocodage/search?q=${encodeURIComponent(query)}&limit=1`,
+      {},
+      ORIGIN_SEARCH_TIMEOUT_MS
+    );
+    if (r.ok) {
+      const data = await r.json();
+      const f = data?.features?.[0];
+      const c = f?.geometry?.coordinates;
+      if (Array.isArray(c) && Number.isFinite(c[0]) && Number.isFinite(c[1])) {
+        return { coord: formatCoord(c[0], c[1]), label: f.properties?.label || query };
       }
-    } catch {
-      continue;
     }
+  } catch (e) {
+    console.warn("geopf search failed", e);
+  }
+  try {
+    const r = await fetchWithTimeout(
+      `https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=fr&q=${encodeURIComponent(query)}`,
+      { headers: UA },
+      ORIGIN_SEARCH_TIMEOUT_MS
+    );
+    if (r.ok) {
+      const data = await r.json();
+      if (Array.isArray(data) && data[0]?.lat && data[0]?.lon) {
+        return { coord: formatCoord(Number(data[0].lon), Number(data[0].lat)), label: data[0].display_name || query };
+      }
+    }
+  } catch (e) {
+    console.warn("nominatim search failed", e);
   }
   return null;
 };
 
-const reverseGeocode = async (coord: string, fallbackLabel: string) => {
-  try {
-    const { lat, lon } = parseCoord(coord);
-    const response = await fetchWithTimeout(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=fr&addressdetails=1`,
-      { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } },
-      REVERSE_GEOCODE_TIMEOUT_MS
-    );
-    if (!response.ok) return fallbackLabel;
-    const data = await response.json();
-    const address = data?.address || {};
-    const name = address.road || address.pedestrian || address.footway || address.neighbourhood || address.suburb;
-    const locality = address.city || address.town || address.village || address.municipality;
-    const label = [name, locality].filter(Boolean).join(", ");
-    return label || data?.display_name || fallbackLabel;
-  } catch {
-    return fallbackLabel;
-  }
-};
+type ReverseInfo = { label?: string; postcode?: string; city?: string };
 
-const reverseGeocodeDetails = async (coord: string): Promise<{ postcode?: string; city?: string }> => {
+// Reverse géocodage unique (libellé + ville + code postal). Géoplateforme puis Nominatim.
+const reverseLookup = async (coord: string): Promise<ReverseInfo> => {
+  const { lat, lon } = parseCoord(coord);
   try {
-    const { lat, lon } = parseCoord(coord);
-    const response = await fetchWithTimeout(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=fr&addressdetails=1`,
-      { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } },
+    const r = await fetchWithTimeout(
+      `https://data.geopf.fr/geocodage/reverse?lon=${lon}&lat=${lat}&index=address&limit=1`,
+      {},
       REVERSE_GEOCODE_TIMEOUT_MS
     );
-    if (!response.ok) return {};
-    const data = await response.json();
-    const address = data?.address || {};
-    return {
-      postcode: address.postcode || undefined,
-      city: address.city || address.town || address.village || address.municipality || undefined,
-    };
-  } catch {
-    return {};
+    if (r.ok) {
+      const data = await r.json();
+      const p = data?.features?.[0]?.properties;
+      if (p) {
+        const name = p.street || p.name;
+        const label = [name, p.city].filter(Boolean).join(", ") || p.label;
+        return { label, postcode: p.postcode || undefined, city: p.city || undefined };
+      }
+    }
+  } catch (e) {
+    console.warn("geopf reverse failed", e);
   }
+  try {
+    const r = await fetchWithTimeout(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=fr&addressdetails=1`,
+      { headers: UA },
+      REVERSE_GEOCODE_TIMEOUT_MS
+    );
+    if (r.ok) {
+      const data = await r.json();
+      const a = data?.address || {};
+      const name = a.road || a.pedestrian || a.footway || a.neighbourhood || a.suburb;
+      const city = a.city || a.town || a.village || a.municipality;
+      return {
+        label: [name, city].filter(Boolean).join(", ") || data?.display_name,
+        postcode: a.postcode || undefined,
+        city: city || undefined,
+      };
+    }
+  } catch {
+    /* ignore */
+  }
+  return {};
 };
 
 const getSegmentKey = (a: RouteGeometryPoint, b: RouteGeometryPoint) => {
@@ -183,34 +204,61 @@ const computeOverlapRatio = (geometry: RouteGeometryPoint[]) => {
   return totalDistance > 0 ? repeatedDistance / totalDistance : 1;
 };
 
-// Measure real walking route via OSRM (foot profile). We trust the DISTANCE, not the
-// duration: the OSRM demo's foot speed is optimistic vs Google Maps. We recompute
-// the time from the distance with a Google-equivalent pace so the promised duration
-// matches what the user will actually see in Google Maps.
-const getWalkingRoute = async (coordinates: string[]): Promise<RouteMeasurement> => {
-  const url = `https://router.project-osrm.org/route/v1/foot/${coordinates.join(";")}?overview=full&geometries=geojson&steps=false`;
-  const response = await fetchWithTimeout(
-    url,
-    { headers: { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" } },
-    ROUTE_TIMEOUT_MS
-  );
-  if (!response.ok) throw new Error("OSRM unreachable");
-  const data = await response.json();
-  const route = data?.routes?.[0];
-  if (!route || typeof route.distance !== "number") throw new Error("No route");
+// Itinéraire piéton : Géoplateforme IGN (bdtopo-osrm, piéton), OSRM public en secours.
+// On se fie à la DISTANCE ; la durée est recalculée à 83 m/min (allure Google Maps).
+const routeCounter = { calls: 0 };
 
-  const distanceMeters = Math.round(route.distance);
-  const durationMinutes = Math.round(distanceMeters / EFFECTIVE_WALKING_SPEED_M_PER_MIN);
-  const geometry = Array.isArray(route.geometry?.coordinates)
-    ? (route.geometry.coordinates as RouteGeometryPoint[])
-    : [];
-
+const buildMeasurement = (distance: number, geometry: RouteGeometryPoint[]): RouteMeasurement => {
+  const distanceMeters = Math.round(distance);
   return {
-    durationMinutes,
+    durationMinutes: Math.round(distanceMeters / EFFECTIVE_WALKING_SPEED_M_PER_MIN),
     distanceMeters,
     overlapRatio: computeOverlapRatio(geometry),
     geometry,
   };
+};
+
+const getWalkingRoute = async (coordinates: string[]): Promise<RouteMeasurement> => {
+  routeCounter.calls += 1;
+  const start = coordinates[0];
+  const end = coordinates[coordinates.length - 1];
+  const intermediates = coordinates.slice(1, -1).join("|");
+  const url =
+    `https://data.geopf.fr/navigation/itineraire?resource=bdtopo-osrm&profile=pedestrian&optimization=shortest` +
+    `&start=${start}&end=${end}&intermediates=${encodeURIComponent(intermediates)}` +
+    `&geometryFormat=geojson&getSteps=false&getBbox=false&distanceUnit=meter&timeUnit=minute`;
+  try {
+    const r = await fetchWithTimeout(url, {}, ROUTE_TIMEOUT_MS);
+    if (r.ok) {
+      const data = await r.json();
+      const geometry = data?.geometry?.coordinates;
+      if (typeof data?.distance === "number" && Array.isArray(geometry)) {
+        return buildMeasurement(data.distance, geometry as RouteGeometryPoint[]);
+      }
+    } else {
+      console.warn("geopf route non-2xx", r.status);
+    }
+  } catch (e) {
+    console.warn("geopf route failed", e);
+  }
+  const osrm = `https://router.project-osrm.org/route/v1/foot/${coordinates.join(";")}?overview=full&geometries=geojson&steps=false`;
+  const r = await fetchWithTimeout(osrm, { headers: UA }, ROUTE_TIMEOUT_MS);
+  if (!r.ok) throw new Error("Routing unreachable");
+  const data = await r.json();
+  const route = data?.routes?.[0];
+  if (!route || typeof route.distance !== "number") throw new Error("No route");
+  return buildMeasurement(route.distance, (route.geometry?.coordinates ?? []) as RouteGeometryPoint[]);
+};
+
+const simplifyGeometry = (geometry: RouteGeometryPoint[], maxPoints = 300) => {
+  if (geometry.length <= maxPoints) return geometry.map(([lo, la]) => [+lo.toFixed(6), +la.toFixed(6)]);
+  const step = (geometry.length - 1) / (maxPoints - 1);
+  const out: RouteGeometryPoint[] = [];
+  for (let i = 0; i < maxPoints; i += 1) {
+    const [lo, la] = geometry[Math.round(i * step)];
+    out.push([+lo.toFixed(6), +la.toFixed(6)]);
+  }
+  return out;
 };
 
 const sampleRouteGeometry = (geometry: RouteGeometryPoint[], desiredPoints = 8) => {
@@ -445,6 +493,7 @@ const generateAiDescriptions = async (
             },
           ],
           response_format: { type: "json_object" },
+          max_tokens: 1500,
         }),
       },
       AI_TIMEOUT_MS
@@ -486,157 +535,239 @@ const buildSteps = (
   }));
 };
 
+const ANGLE_TEMPLATES = [
+  [0, 120, 240],
+  [20, 140, 260],
+  [40, 160, 280],
+  [60, 180, 300],
+  [80, 200, 320],
+  [100, 220, 340],
+];
+const MAX_ROUTE_CALLS = 24;
+const RATE_LIMIT_PER_HOUR = 20;
+const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+const getAdminClient = () => {
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  return url && key ? createClient(url, key) : null;
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  try {
-    const { location, duration, interests } = await req.json();
+  const startedAt = Date.now();
+  routeCounter.calls = 0;
+  const admin = getAdminClient();
+  const ip = (req.headers.get("x-forwarded-for") ?? "unknown").split(",")[0].trim() || "unknown";
 
-    if (!location || typeof location !== "string") {
-      return businessError("Veuillez indiquer un point de départ valide.");
+  const logRequest = (status: string, error: string | null, cacheHit = false) => {
+    if (!admin) return;
+    admin
+      .from("generation_requests")
+      .insert({ ip, status, error, duration_ms: Date.now() - startedAt, cache_hit: cacheHit })
+      .then(({ error: e }) => e && console.error("log request error:", e.message));
+  };
+  const fail = (message: string, status = "error") => {
+    logRequest(status, message);
+    return businessError(message);
+  };
+
+  try {
+    const body = await req.json();
+    const { location, duration, interests } = body;
+    const latIn = Number(body.lat);
+    const lonIn = Number(body.lon);
+    const hasCoords =
+      body.lat !== undefined && body.lon !== undefined &&
+      Number.isFinite(latIn) && Number.isFinite(lonIn) &&
+      Math.abs(latIn) <= 90 && Math.abs(lonIn) <= 180 && !(latIn === 0 && lonIn === 0);
+
+    if (!hasCoords && (!location || typeof location !== "string")) {
+      return fail("Veuillez indiquer un point de départ valide.", "invalid");
     }
     if (!Number.isFinite(duration) || duration < 15 || duration > 120) {
-      return businessError("Le temps disponible doit être compris entre 15 et 120 minutes.");
+      return fail("Le temps disponible doit être compris entre 15 et 120 minutes.", "invalid");
     }
-    if (!Array.isArray(interests) || interests.length === 0) {
-      return businessError("Choisissez au moins un centre d'intérêt.");
-    }
-
-    const routeContext = location.includes(",") ? location.split(",").slice(-3).join(",").trim() : location;
-    const originResolved = await geocode(location, routeContext);
-    if (!originResolved) {
-      return businessError("Impossible de localiser précisément le point de départ.");
+    if (!Array.isArray(interests) || interests.length === 0 || interests.some((i: unknown) => typeof i !== "string")) {
+      return fail("Choisissez au moins un centre d'intérêt.", "invalid");
     }
 
-    const loops = createCandidateLoops(originResolved.coord, duration);
+    // Limitation de débit par IP
+    if (admin) {
+      const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { count } = await admin
+        .from("generation_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("ip", ip)
+        .gte("created_at", since)
+        .in("status", ["success", "error"]);
+      if ((count ?? 0) >= RATE_LIMIT_PER_HOUR) {
+        return fail("Vous avez atteint la limite de balades pour l'instant, réessayez dans une heure.", "rate_limited");
+      }
+    }
 
+    // Point de départ
+    let originCoord: string;
+    let originLabel: string = typeof location === "string" && location ? location : "";
+    if (hasCoords) {
+      originCoord = formatCoord(lonIn, latIn);
+    } else {
+      const resolved = await geocode(location);
+      if (!resolved) return fail("Impossible de localiser précisément le point de départ.");
+      originCoord = resolved.coord;
+      originLabel = resolved.label;
+    }
+
+    const origin = parseCoord(originCoord);
+    const sortedInterests = [...(interests as string[])].sort();
+    const cacheKey = `${origin.lat.toFixed(3)},${origin.lon.toFixed(3)}|${duration}|${sortedInterests.join(",")}`;
+
+    // Cache
+    if (admin) {
+      const { data: cached } = await admin
+        .from("balade_cache")
+        .select("response, created_at")
+        .eq("cache_key", cacheKey)
+        .maybeSingle();
+      if (cached && Date.now() - new Date(cached.created_at).getTime() < CACHE_TTL_MS) {
+        const resp = cached.response as any;
+        logSearchStat({
+          ville: resp.origin_city ?? null,
+          code_postal: resp.origin_postcode ?? null,
+          duree_minutes: duration,
+          themes: interests as string[],
+          monuments: (resp.waypoints ?? []).map((w: any) => w.label),
+          origin_address: originLabel || resp.origin_label || null,
+        });
+        logRequest("success", null, true);
+        return jsonResponse({ ...resp, cache_hit: true, route_calls: 0 });
+      }
+    }
+
+    const safeLimit = getSafeDurationLimit(duration);
     const minAcceptable = getMinAcceptableDuration(duration);
     const minLoopAreaSqMeters = getMinLoopAreaSqMeters(duration);
     const minFallbackLoopAreaSqMeters = getMinFallbackLoopAreaSqMeters(duration);
+    const baseRadius = getBaseLoopRadiusMeters(duration);
+    const targetMeters = ((minAcceptable + safeLimit) / 2) * EFFECTIVE_WALKING_SPEED_M_PER_MIN;
+    const minRadius = Math.max(60, Math.round(baseRadius * 0.35));
+    const maxRadius = Math.round(baseRadius * 3);
 
-    // Pick the candidate whose measured duration is CLOSEST to the requested duration
-    // (without exceeding it). We evaluate ALL candidates — no early exit — so a tiny
-    // 15-min loop never wins over a true 29-min loop for a 30-min request.
     let bestCloseToTarget: CandidateLoop | null = null;
     let bestWithinHard: CandidateLoop | null = null;
     let bestLowOverlap: CandidateLoop | null = null;
 
-    const CHUNK = 8;
-    for (let i = 0; i < loops.length; i += CHUNK) {
-      const chunk = loops.slice(i, i + CHUNK);
+    const better = (a: CandidateLoop, b: CandidateLoop | null) =>
+      !b ||
+      a.route.durationMinutes > b.route.durationMinutes ||
+      (a.route.durationMinutes === b.route.durationMinutes &&
+        (a.route.overlapRatio < b.route.overlapRatio ||
+          (a.route.overlapRatio === b.route.overlapRatio && a.loopAreaSqMeters > b.loopAreaSqMeters)));
+
+    const consider = (loop: string[], route: RouteMeasurement) => {
+      const cand: CandidateLoop = { coords: loop, route, loopAreaSqMeters: computeLoopAreaSqMeters(loop) };
+      if (route.durationMinutes > duration) return;
+      const isClean = cand.loopAreaSqMeters >= minLoopAreaSqMeters && route.overlapRatio <= MAX_ACCEPTABLE_OVERLAP_RATIO;
+      if (
+        route.overlapRatio <= MAX_FALLBACK_OVERLAP_RATIO &&
+        cand.loopAreaSqMeters >= minFallbackLoopAreaSqMeters &&
+        better(cand, bestLowOverlap)
+      ) bestLowOverlap = cand;
+      if (isClean && better(cand, bestWithinHard)) bestWithinHard = cand;
+      if (isClean && route.durationMinutes >= minAcceptable && better(cand, bestCloseToTarget)) bestCloseToTarget = cand;
+    };
+
+    // Passes 1→3 : 6 gabarits en parallèle, rayon ajusté par ratio distance cible / mesurée.
+    const radii = ANGLE_TEMPLATES.map(() => baseRadius);
+    for (let pass = 0; pass < 3; pass += 1) {
+      if (routeCounter.calls + ANGLE_TEMPLATES.length > MAX_ROUTE_CALLS) break;
       const results = await Promise.allSettled(
-        chunk.map((loop) =>
-          getWalkingRoute([originResolved.coord, ...loop, originResolved.coord]).then(
-            (route) => ({ loop, route })
-          )
-        )
+        ANGLE_TEMPLATES.map(async (angles, t) => {
+          // Étalement léger : la Géoplateforme limite à ~5 requêtes/s par IP.
+          await new Promise((res) => setTimeout(res, t * 220));
+          const loop = angles.map((a) => offsetCoordinate(originCoord, radii[t], a));
+          const route = await getWalkingRoute([originCoord, ...loop, originCoord]);
+          return { t, loop, route };
+        })
       );
       for (const r of results) {
         if (r.status !== "fulfilled") continue;
-        const { loop, route } = r.value;
-        const loopAreaSqMeters = computeLoopAreaSqMeters(loop);
-        const isCleanLoop =
-          loopAreaSqMeters >= minLoopAreaSqMeters &&
-          route.overlapRatio <= MAX_ACCEPTABLE_OVERLAP_RATIO;
-
-        if (route.durationMinutes <= duration) {
-          const isBetterFallback =
-            route.overlapRatio <= MAX_FALLBACK_OVERLAP_RATIO &&
-            loopAreaSqMeters >= minFallbackLoopAreaSqMeters &&
-            (!bestLowOverlap ||
-              route.durationMinutes > bestLowOverlap.route.durationMinutes ||
-              (route.durationMinutes === bestLowOverlap.route.durationMinutes &&
-                (route.overlapRatio < bestLowOverlap.route.overlapRatio ||
-                  (route.overlapRatio === bestLowOverlap.route.overlapRatio &&
-                    loopAreaSqMeters > bestLowOverlap.loopAreaSqMeters))));
-
-          if (isBetterFallback) {
-            bestLowOverlap = { coords: loop, route, loopAreaSqMeters };
-          }
-
-          if (
-            isCleanLoop &&
-            (!bestWithinHard ||
-              route.durationMinutes > bestWithinHard.route.durationMinutes ||
-              (route.durationMinutes === bestWithinHard.route.durationMinutes &&
-                (route.overlapRatio < bestWithinHard.route.overlapRatio ||
-                  (route.overlapRatio === bestWithinHard.route.overlapRatio &&
-                    loopAreaSqMeters > bestWithinHard.loopAreaSqMeters))))
-          ) {
-            bestWithinHard = { coords: loop, route, loopAreaSqMeters };
-          }
-          if (isCleanLoop && route.durationMinutes >= minAcceptable) {
-            if (
-              !bestCloseToTarget ||
-              route.durationMinutes > bestCloseToTarget.route.durationMinutes ||
-              (route.durationMinutes === bestCloseToTarget.route.durationMinutes &&
-                (route.overlapRatio < bestCloseToTarget.route.overlapRatio ||
-                  (route.overlapRatio === bestCloseToTarget.route.overlapRatio &&
-                    loopAreaSqMeters > bestCloseToTarget.loopAreaSqMeters)))
-            ) {
-              bestCloseToTarget = { coords: loop, route, loopAreaSqMeters };
-            }
-          }
+        const { t, loop, route } = r.value;
+        consider(loop, route);
+        if (route.distanceMeters > 0) {
+          const ratio = Math.min(2.5, Math.max(0.4, targetMeters / route.distanceMeters));
+          radii[t] = Math.min(maxRadius, Math.max(minRadius, Math.round(radii[t] * ratio)));
         }
       }
+      if (bestCloseToTarget) break;
     }
 
-    // Prefer a clean loop close to target, then a clean shorter loop, then a last
-    // low-overlap fallback. If none survives those filters, refuse instead of
-    // returning a fake "boucle" that is really an out-and-back on the same street.
-    const selected = bestCloseToTarget || bestWithinHard || bestLowOverlap;
+    const selected: CandidateLoop | null = bestCloseToTarget || bestWithinHard || bestLowOverlap;
     if (!selected) {
-      return businessError(
-        `Impossible de tracer une vraie boucle à pied satisfaisante depuis cette adresse sans repasser sur ses pas. Essayez un autre point de départ proche ou une durée légèrement plus longue.`
+      return fail(
+        "Impossible de tracer une vraie boucle à pied satisfaisante depuis cette adresse sans repasser sur ses pas. Essayez un autre point de départ proche ou une durée légèrement plus longue."
       );
     }
 
-    const waypointLabels = await Promise.all(
-      selected.coords.map((coord, index) => reverseGeocode(coord, `Point de balade ${index + 1}`))
-    );
+    const [originInfo, ...wpInfos] = await Promise.all([
+      reverseLookup(originCoord),
+      ...selected.coords.map((c) => reverseLookup(c)),
+    ]);
+    const waypointLabels = wpInfos.map((w, i) => w.label || `Point de balade ${i + 1}`);
+    if (!originLabel) originLabel = originInfo.label || `${origin.lat.toFixed(5)}, ${origin.lon.toFixed(5)}`;
 
-    const waypoints: Waypoint[] = selected.coords.map((coord, index) => ({
-      coord,
-      label: waypointLabels[index],
-    }));
+    const waypoints: Waypoint[] = selected.coords.map((coord, index) => ({ coord, label: waypointLabels[index] }));
 
-    // Resolve city FIRST so the AI prompt can be anchored to it.
-    const originDetails = await reverseGeocodeDetails(originResolved.coord);
     const aiDescriptions = await generateAiDescriptions(
-      originResolved.label,
-      originDetails.city,
+      originLabel,
+      originInfo.city,
       waypointLabels,
       interests as string[],
       selected.route.durationMinutes
     );
-
     const steps = buildSteps(waypoints, aiDescriptions);
 
-    // Fire-and-forget logging of the successful search
     logSearchStat({
-      ville: originDetails.city ?? null,
-      code_postal: originDetails.postcode ?? null,
+      ville: originInfo.city ?? null,
+      code_postal: originInfo.postcode ?? null,
       duree_minutes: duration,
       themes: interests as string[],
       monuments: waypointLabels,
-      origin_address: originResolved.label ?? location,
+      origin_address: originLabel,
     });
 
-    return jsonResponse({
+    const response = {
       steps,
-      google_maps_url: buildGoogleMapsUrl(
-        toLatLng(originResolved.coord),
-        selected.route.geometry
-      ),
+      google_maps_url: buildGoogleMapsUrl(toLatLng(originCoord), selected.route.geometry),
       walking_minutes: selected.route.durationMinutes,
       walking_distance_meters: selected.route.distanceMeters,
-      origin_postcode: originDetails.postcode ?? null,
-      origin_city: originDetails.city ?? null,
-    });
+      origin_postcode: originInfo.postcode ?? null,
+      origin_city: originInfo.city ?? null,
+      origin_label: originLabel,
+      origin: { lat: origin.lat, lon: origin.lon },
+      route_geometry: simplifyGeometry(selected.route.geometry),
+      waypoints: waypoints.map((w) => {
+        const c = parseCoord(w.coord);
+        return { lat: c.lat, lon: c.lon, label: w.label };
+      }),
+    };
+
+    if (admin && aiDescriptions) {
+      admin
+        .from("balade_cache")
+        .upsert({ cache_key: cacheKey, response, created_at: new Date().toISOString() })
+        .then(({ error: e }) => e && console.error("cache write error:", e.message));
+    }
+    logRequest("success", null, false);
+    console.log(`generate-balade ok: ${routeCounter.calls} route calls, ${Date.now() - startedAt} ms`);
+    return jsonResponse({ ...response, cache_hit: false, route_calls: routeCounter.calls });
   } catch (e) {
     console.error("generate-balade error:", e);
-    return jsonResponse({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    logRequest("error", msg);
+    return jsonResponse({ error: msg }, 500);
   }
 });

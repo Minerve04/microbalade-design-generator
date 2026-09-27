@@ -9,7 +9,7 @@ const Index = () => {
   const [duration, setDuration] = useState(30);
   const [loading, setLoading] = useState(false);
 
-  const handleGenerate = async (data: { location: string; duration: number; interests: string[] }) => {
+  const handleGenerate = async (data: { location: string; duration: number; interests: string[]; lat?: number; lon?: number }) => {
     if (!data.location.trim()) {
       toast.error("Veuillez indiquer votre localisation");
       return;
@@ -24,7 +24,12 @@ const Index = () => {
 
     try {
       const { data: fnData, error } = await supabase.functions.invoke("generate-balade", {
-        body: { location: data.location, duration: data.duration, interests: data.interests },
+        body: {
+          location: data.location,
+          duration: data.duration,
+          interests: data.interests,
+          ...(data.lat !== undefined && data.lon !== undefined ? { lat: data.lat, lon: data.lon } : {}),
+        },
       });
 
       if (error) throw error;

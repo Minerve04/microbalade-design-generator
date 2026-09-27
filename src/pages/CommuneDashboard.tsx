@@ -92,6 +92,15 @@ function toInputDate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
+async function lookupPostcode(nom: string): Promise<string | null> {
+  const r = await fetch(
+    `https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(nom)}&fields=codesPostaux&boost=population&limit=1`
+  );
+  if (!r.ok) return null;
+  const arr = await r.json();
+  return Array.isArray(arr) && arr[0]?.codesPostaux?.[0] ? String(arr[0].codesPostaux[0]) : null;
+}
+
 export default function CommuneDashboard() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
@@ -154,16 +163,11 @@ export default function CommuneDashboard() {
         setProfile(data as CommuneProfile);
         setLienAction(data.lien_action ?? "");
         setCodePostal(data.code_postal ?? "");
-        // Auto-fill code postal via Nominatim si vide
+        // Auto-fill code postal via geo.api.gouv.fr si vide
         if (!data.code_postal && data.nom_collectivite) {
           const cleanName = data.nom_collectivite.replace(/^(mairie|commune|ville)\s+(de\s+|du\s+|des\s+|d')?/i, "").trim();
           try {
-            const res = await fetch(
-              `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanName + ", France")}&format=json&addressdetails=1&limit=1`,
-              { headers: { "Accept-Language": "fr" } }
-            );
-            const json = await res.json();
-            const postcode = json?.[0]?.address?.postcode;
+            const postcode = await lookupPostcode(cleanName);
             if (postcode) {
               setCodePostal(postcode);
               await supabase
@@ -173,7 +177,7 @@ export default function CommuneDashboard() {
               setProfile({ ...(data as CommuneProfile), code_postal: postcode });
             }
           } catch (e) {
-            console.warn("Nominatim auto-fill failed", e);
+            console.warn("Postcode auto-fill failed", e);
           }
         }
       }
@@ -185,12 +189,7 @@ export default function CommuneDashboard() {
     if (!profile?.nom_collectivite) return;
     const cleanName = profile.nom_collectivite.replace(/^(mairie|commune|ville)\s+(de\s+|du\s+|des\s+|d')?/i, "").trim();
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanName + ", France")}&format=json&addressdetails=1&limit=1`,
-        { headers: { "Accept-Language": "fr" } }
-      );
-      const json = await res.json();
-      const postcode = json?.[0]?.address?.postcode;
+      const postcode = await lookupPostcode(cleanName);
       if (postcode) {
         setCodePostal(postcode);
         toast.success(`Code postal détecté : ${postcode}`);

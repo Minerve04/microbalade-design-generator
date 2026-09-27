@@ -32,6 +32,24 @@ export type Database = {
         }
         Relationships: []
       }
+      balade_cache: {
+        Row: {
+          cache_key: string
+          created_at: string
+          response: Json
+        }
+        Insert: {
+          cache_key: string
+          created_at?: string
+          response: Json
+        }
+        Update: {
+          cache_key?: string
+          created_at?: string
+          response?: Json
+        }
+        Relationships: []
+      }
       commune_profiles: {
         Row: {
           abonnement_label: string
@@ -233,6 +251,36 @@ export type Database = {
           id?: string
           token?: string
           used_at?: string | null
+        }
+        Relationships: []
+      }
+      generation_requests: {
+        Row: {
+          cache_hit: boolean
+          created_at: string
+          duration_ms: number | null
+          error: string | null
+          id: string
+          ip: string
+          status: string
+        }
+        Insert: {
+          cache_hit?: boolean
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          ip: string
+          status: string
+        }
+        Update: {
+          cache_hit?: boolean
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          ip?: string
+          status?: string
         }
         Relationships: []
       }

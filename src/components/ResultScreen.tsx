@@ -3,6 +3,7 @@ import { MapPin, Navigation, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import BaladeMap from "@/components/BaladeMap";
 
 export interface BaladeStep {
   title: string;
@@ -17,6 +18,8 @@ export interface BaladeResult {
   walking_distance_meters?: number;
   origin_postcode?: string | null;
   origin_city?: string | null;
+  route_geometry?: [number, number][];
+  waypoints?: { lat: number; lon: number; label: string }[];
 }
 
 interface ResultScreenProps {
@@ -97,27 +100,19 @@ const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
           </p>
         </motion.div>
       )}
-      {/* Map placeholder */}
       <div className="relative w-full h-56 bg-secondary overflow-hidden">
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-2 text-muted-foreground">
+        {result.route_geometry && result.route_geometry.length > 1 ? (
+          <BaladeMap geometry={result.route_geometry} waypoints={result.waypoints ?? []} />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
             <MapPin size={32} className="text-primary" />
-            <span className="text-sm font-medium">Carte interactive</span>
           </div>
-        </div>
-        <svg className="absolute inset-0 w-full h-full opacity-[0.04]" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <pattern id="dots" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-              <circle cx="2" cy="2" r="1.5" fill="currentColor" />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#dots)" />
-        </svg>
+        )}
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={onBack}
           aria-label="Retour"
-          className="absolute top-4 left-4 bg-card/90 backdrop-blur-md rounded-full p-2.5 shadow-sm border border-border/50"
+          className="absolute top-4 left-4 z-[1000] bg-card/90 backdrop-blur-md rounded-full p-2.5 shadow-sm border border-border/50"
         >
           <ArrowLeft size={20} className="text-foreground" />
         </motion.button>
