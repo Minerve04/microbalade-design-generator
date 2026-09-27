@@ -1,5 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { collectFacts, findUnsourced, stripSentencesWith, type Fact } from "./facts.ts";
+
+const PROMPT_VERSION = "v3.2-facts";
 
 const logSearchStat = async (row: {
   ville: string | null;
@@ -421,118 +424,119 @@ const buildAiPrompt = (
   city: string | undefined,
   waypointLabels: string[],
   interests: string[],
-  walkingMinutes: number
+  walkingMinutes: number,
+  facts: Fact[],
+  corrections?: string[]
 ) => {
   const interestsHuman = interests.map((i) => INTEREST_LABELS[i] || i).join(", ");
   const stepsList = waypointLabels.map((label, i) => `${i + 1}. ${label}`).join("\n");
   const cityLine = city ? `Ville : ${city}\n` : "";
-  return `Tu es un guide local érudit de ${city || "cette ville"} — historien de quartier, passionné de patrimoine, capable de raconter une rue comme un habitant qui y vit depuis 40 ans. Tu écris pour un promeneur qui veut apprendre quelque chose de PRÉCIS et de VRAI à chaque étape, pas être flatté avec des phrases d'agence touristique.
+  const factsBlock = facts.length
+    ? facts
+        .map((f) => `[${f.id}] (étape la plus proche : ${f.etape_la_plus_proche}, ${f.distance_m} m du tracé, source : ${f.source_label}) ${f.titre} — ${f.texte}`)
+        .join("\n")
+    : "(aucun fait vérifié disponible pour cette boucle)";
+  const correctionBlock = corrections?.length
+    ? `\n═══ CORRECTION OBLIGATOIRE ═══\nTa réponse précédente contenait des éléments NON présents dans les faits. Retire ou remplace : ${corrections.join(" ; ")}\n`
+    : "";
+  return `Tu es un guide local de ${city || "cette ville"}. Tu écris pour un promeneur qui veut apprendre quelque chose de VRAI à chaque étape, pas être flatté avec des phrases d'agence touristique. Face à une mairie, une seule erreur factuelle est inacceptable.
 
 Départ : ${originLabel}
 ${cityLine}Durée mesurée : ${walkingMinutes} minutes à pied
 Centres d'intérêt du promeneur : ${interestsHuman}
 
-Étapes RÉELLES de la boucle (noms de rues/lieux extraits de l'itinéraire, dans l'ordre) :
+Étapes RÉELLES de la boucle (dans l'ordre) :
 ${stepsList}
 
-═══ EXIGENCE N°1 — PRÉCISION CULTURELLE (PRIORITAIRE) ═══
+═══ FAITS VÉRIFIÉS ═══
+${factsBlock}
 
-Pour CHAQUE étape, écris un mini-paragraphe de 3 à 4 phrases qui DOIT contenir, autant que le lieu le permet :
-1. Le nom explicite de la rue ou du lieu fourni.
-2. Une DATATION précise : siècle de construction, époque (médiévale, XVIIIᵉ, fin XIXᵉ industriel, reconstruction d'après-guerre, années 1930…). Pas "ancien" ni "historique" tout court.
-3. Un STYLE ARCHITECTURAL nommé avec ses mots techniques : gothique flamboyant, roman, néo-classique, art déco, brique rouge flamande, pan-de-bois, façade haussmannienne, hôtel particulier, reconstruction Pingusson, etc. — jamais "belle architecture" ou "joli bâtiment".
-4. Une ANECDOTE concrète et localisée : fait historique daté, légende, étymologie du nom de rue, personnage qui y a vécu, métier disparu qui s'y exerçait, événement, fonction d'origine du bâti, particularité peu connue. Quelque chose qu'un touriste ne pourrait PAS deviner seul.
-5. Un détail observable précis à pointer (sculpture, plaque, modillon, enseigne ancienne, marque de crue, vestige, perspective) pour ancrer le récit dans le réel visible.
+═══ RÈGLE ABSOLUE — ZÉRO INVENTION ═══
+- Tout nom propre (personne, édifice, institution, ordre religieux), toute date, tout siècle, tout nombre et toute anecdote DOIT provenir d'un fait ci-dessus, et ce fait doit être cité dans "fact_ids".
+- Interdiction de numéros de rue, de dates, de siècles ou de noms qui ne figurent pas dans les faits. Tu peux nommer la rue de l'étape et la ville.
+- Privilégie les faits dont la source est « Ville de … » (lieux validés par la commune), puis Mérimée, puis Wikipédia. Utilise en priorité les faits dont "étape la plus proche" correspond à l'étape.
+- Si une étape n'a aucun fait pertinent : écris une description d'OBSERVATION (ce qu'on voit, matériaux, gabarit des bâtiments, ambiance, conseils d'attention piéton), sans aucun nom propre autre que la rue, sans date ni chiffre. Si tu évoques une époque, reste au conditionnel prudent (« l'alignement de façades en brique évoque plutôt… »). "fact_ids" est alors [].
+- Chaque étape : 3 à 4 phrases.
 
-INTERDICTIONS ABSOLUES (ces formules sont bannies, et toute variante équivalente l'est aussi) :
+INTERDICTIONS DE FORMULES (et toute variante équivalente) :
 "Découvrez…", "Admirez…", "Magnifique", "Splendide", "Charmant", "Pittoresque", "Authentique", "Ne manquez pas", "Laissez-vous porter", "Laissez la cadence", "Ouvrez l'œil", "Gardez les yeux levés", "Plongez dans…", "Au cœur de…", "Véritable joyau", "Incontournable", "Magnifique église", "Belle architecture", "Riche histoire", "Ambiance unique", "Ce pivot relie deux ambiances".
 
-Règle anti-invention : si tu n'as PAS d'anecdote vérifiée pour CE lieu précis, fais une lecture experte typologique (ex. "la brique jaune et les linteaux métalliques trahissent une construction de la fin du XIXᵉ liée à l'essor ferroviaire local") — mais N'INVENTE JAMAIS un nom propre, une date précise, un événement nommé, un personnage ou une citation.
-
-═══ EXIGENCE N°2 — SÉCURITÉ ET CONFORT PIÉTON (ZONES RURALES / PÉRIURBAINES) ═══
-
-Si l'étape se situe en zone rurale, périurbaine ou village (peu de bâti dense), tu DOIS :
-- Valoriser et nommer les axes calmes empruntés : sentiers de randonnée balisés (GR, PR), voies vertes, chemins communaux, rues résidentielles, chemins ruraux, sentes.
-- Si une étape passe à proximité ou sur une route départementale (RD), route nationale, ou un axe passant SANS trottoir continu, AVERTIR brièvement et explicitement le promeneur (ex. "prudence : la D928 n'a pas de trottoir sur ce tronçon, marchez bien à gauche face à la circulation") et, si possible, suggérer une alternative visible (trottoir opposé, accotement enherbé, sente parallèle).
-- Ne jamais valoriser une portion bruyante ou dangereuse comme si elle était agréable. Honnêteté avant marketing.
-- Ton bienveillant et discret, pas anxiogène.
-
+═══ SÉCURITÉ PIÉTON (ZONES RURALES / PÉRIURBAINES) ═══
+- Valorise les axes calmes (sentiers, chemins, rues résidentielles) sans les nommer s'ils ne sont pas la rue de l'étape.
+- Si l'étape longe visiblement une route passante sans trottoir, avertis brièvement (marcher face à la circulation, accotement), sans inventer de numéro de route.
+- Ton bienveillant et discret, honnête avant marketing.
+${correctionBlock}
 ═══ FORMAT DE SORTIE ═══
-
-- Pas d'introduction, pas de conclusion, pas de titre, pas de liste à puces, pas d'emoji.
-- Varie réellement le ton, l'angle et la structure entre les 3 étapes (une plus historique, une plus architecturale, une plus sensorielle/urbaine).
-- Réponds STRICTEMENT en JSON valide, sans texte avant ni après :
-{"steps":[{"description":"..."},{"description":"..."},{"description":"..."}]}`;
+- Pas d'introduction, pas de conclusion, pas de titre, pas de liste, pas d'emoji.
+- Varie le ton entre les étapes.
+- Réponds STRICTEMENT en JSON valide :
+{"steps":[{"description":"...","fact_ids":["F2"]},{"description":"...","fact_ids":[]},{"description":"...","fact_ids":["F5"]}]}`;
 };
 
-const generateAiDescriptions = async (
-  originLabel: string,
-  city: string | undefined,
-  waypointLabels: string[],
-  interests: string[],
-  walkingMinutes: number
-): Promise<string[] | null> => {
+type AiStep = { description: string; fact_ids: string[] };
+
+const generateAiDescriptions = async (prompt: string): Promise<AiStep[] | null> => {
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) return null;
-
   try {
     const response = await fetchWithTimeout(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "google/gemini-2.5-flash",
-          messages: [
-            {
-              role: "user",
-              content: buildAiPrompt(originLabel, city, waypointLabels, interests, walkingMinutes),
-            },
-          ],
+          messages: [{ role: "user", content: prompt }],
           response_format: { type: "json_object" },
-          max_tokens: 1500,
+          temperature: 0.4,
+          max_tokens: 1800,
         }),
       },
       AI_TIMEOUT_MS
     );
-
     if (!response.ok) {
       console.warn("AI gateway non-2xx", response.status, await response.text());
       return null;
     }
-
     const data = await response.json();
     const content = data?.choices?.[0]?.message?.content;
     if (!content) return null;
-
     const parsed = typeof content === "string" ? JSON.parse(content) : content;
-    const steps = Array.isArray(parsed?.steps) ? parsed.steps : null;
-    if (!steps) return null;
-
-    return steps
-      .map((s: any) => (typeof s?.description === "string" ? s.description.trim() : ""))
-      .filter(Boolean);
+    if (!Array.isArray(parsed?.steps)) return null;
+    return parsed.steps.map((s: any) => ({
+      description: typeof s?.description === "string" ? s.description.trim() : "",
+      fact_ids: Array.isArray(s?.fact_ids) ? s.fact_ids.filter((x: unknown) => typeof x === "string") : [],
+    }));
   } catch (e) {
     console.warn("AI generation failed:", e);
     return null;
   }
 };
 
-const buildSteps = (
-  waypoints: Waypoint[],
-  aiDescriptions: string[] | null
-): BaladeStep[] => {
+// Liste des éléments non sourcés, par étape.
+const auditSteps = (steps: AiStep[], labels: string[], city: string | undefined, facts: Fact[], originLabel = "") =>
+  steps.map((s, i) => {
+    const cited = facts.filter((f) => s.fact_ids.includes(f.id));
+    const corpus = [labels[i] ?? "", city ?? "", originLabel, ...cited.map((f) => `${f.titre} ${f.texte}`)].join(" \n ");
+    return findUnsourced(s.description, corpus);
+  });
+
+type FinalStep = BaladeStep & { sources: { label: string; url: string | null }[] };
+
+const buildSteps = (waypoints: Waypoint[], ai: AiStep[] | null, facts: Fact[]): FinalStep[] => {
   const titles = ["Premier détour", "Point de passage", "Retour par la boucle"];
-  return waypoints.map((waypoint, index) => ({
-    title: titles[index] ?? `Étape ${index + 1}`,
-    description:
-      aiDescriptions?.[index] ||
-      buildFallbackDescription(waypoint.label, index),
-    place: waypoint.label,
-  }));
+  return waypoints.map((waypoint, index) => {
+    const s = ai?.[index];
+    const useAi = s && s.description.length >= 120;
+    const cited = useAi ? facts.filter((f) => s!.fact_ids.includes(f.id)) : [];
+    return {
+      title: titles[index] ?? `Étape ${index + 1}`,
+      description: useAi ? s!.description : buildFallbackDescription(waypoint.label, index),
+      place: waypoint.label,
+      fact_ids: cited.map((f) => f.id),
+      sources: cited.map((f) => ({ label: f.source_label, url: f.source_url })),
+    } as FinalStep;
+  });
 };
 
 const ANGLE_TEMPLATES = [
@@ -563,11 +567,16 @@ serve(async (req) => {
   const admin = getAdminClient();
   const ip = (req.headers.get("x-forwarded-for") ?? "unknown").split(",")[0].trim() || "unknown";
 
-  const logRequest = (status: string, error: string | null, cacheHit = false) => {
+  const logRequest = (
+    status: string,
+    error: string | null,
+    cacheHit = false,
+    extra: { unsourced_count?: number; ai_retried?: boolean } = {}
+  ) => {
     if (!admin) return;
     admin
       .from("generation_requests")
-      .insert({ ip, status, error, duration_ms: Date.now() - startedAt, cache_hit: cacheHit })
+      .insert({ ip, status, error, duration_ms: Date.now() - startedAt, cache_hit: cacheHit, ...extra })
       .then(({ error: e }) => e && console.error("log request error:", e.message));
   };
   const fail = (message: string, status = "error") => {
@@ -623,7 +632,7 @@ serve(async (req) => {
 
     const origin = parseCoord(originCoord);
     const sortedInterests = [...(interests as string[])].sort();
-    const cacheKey = `${origin.lat.toFixed(3)},${origin.lon.toFixed(3)}|${duration}|${sortedInterests.join(",")}`;
+    const cacheKey = `${PROMPT_VERSION}|${origin.lat.toFixed(3)},${origin.lon.toFixed(3)}|${duration}|${sortedInterests.join(",")}`;
 
     // Cache
     if (admin) {
@@ -721,14 +730,37 @@ serve(async (req) => {
 
     const waypoints: Waypoint[] = selected.coords.map((coord, index) => ({ coord, label: waypointLabels[index] }));
 
-    const aiDescriptions = await generateAiDescriptions(
-      originLabel,
-      originInfo.city,
-      waypointLabels,
-      interests as string[],
-      selected.route.durationMinutes
-    );
-    const steps = buildSteps(waypoints, aiDescriptions);
+    const factsStart = Date.now();
+    const { facts, counts: factCounts, errors: factErrors } = await collectFacts({
+      admin,
+      route: selected.route.geometry,
+      steps: selected.coords.map((c) => parseCoord(c)),
+      postcode: originInfo.postcode,
+      city: originInfo.city,
+      timeoutMs: 4000,
+    });
+    const factsMs = Date.now() - factsStart;
+    if (factErrors.length) console.warn("facts errors:", factErrors.join(" | "));
+
+    const promptArgs = [originLabel, originInfo.city, waypointLabels, interests as string[], selected.route.durationMinutes, facts] as const;
+    let aiDescriptions = await generateAiDescriptions(buildAiPrompt(...promptArgs));
+    let unsourcedFirst: string[] = [];
+    let unsourcedFinal: string[] = [];
+    let aiRetried = false;
+    if (aiDescriptions) {
+      unsourcedFirst = auditSteps(aiDescriptions, waypointLabels, originInfo.city, facts, originLabel).flat();
+      if (unsourcedFirst.length) {
+        aiRetried = true;
+        const retry = await generateAiDescriptions(buildAiPrompt(...promptArgs, unsourcedFirst));
+        if (retry) aiDescriptions = retry;
+        const perStep = auditSteps(aiDescriptions, waypointLabels, originInfo.city, facts, originLabel);
+        unsourcedFinal = perStep.flat();
+        aiDescriptions = aiDescriptions.map((s, i) =>
+          perStep[i].length ? { ...s, description: stripSentencesWith(s.description, perStep[i]) } : s
+        );
+      }
+    }
+    const steps = buildSteps(waypoints, aiDescriptions, facts);
 
     logSearchStat({
       ville: originInfo.city ?? null,
@@ -748,6 +780,7 @@ serve(async (req) => {
       origin_city: originInfo.city ?? null,
       origin_label: originLabel,
       origin: { lat: origin.lat, lon: origin.lon },
+      facts: facts.map(({ kind: _k, ...f }) => f),
       route_geometry: simplifyGeometry(selected.route.geometry),
       waypoints: waypoints.map((w) => {
         const c = parseCoord(w.coord);
@@ -761,9 +794,14 @@ serve(async (req) => {
         .upsert({ cache_key: cacheKey, response, created_at: new Date().toISOString() })
         .then(({ error: e }) => e && console.error("cache write error:", e.message));
     }
-    logRequest("success", null, false);
+    logRequest("success", null, false, { unsourced_count: unsourcedFirst.length, ai_retried: aiRetried });
     console.log(`generate-balade ok: ${routeCounter.calls} route calls, ${Date.now() - startedAt} ms`);
-    return jsonResponse({ ...response, cache_hit: false, route_calls: routeCounter.calls });
+    return jsonResponse({
+      ...response,
+      cache_hit: false,
+      route_calls: routeCounter.calls,
+      diagnostics: { fact_counts: factCounts, fact_errors: factErrors, facts_ms: factsMs, unsourced_first: unsourcedFirst, unsourced_final: unsourcedFinal, ai_retried: aiRetried },
+    });
   } catch (e) {
     console.error("generate-balade error:", e);
     const msg = e instanceof Error ? e.message : "Unknown error";

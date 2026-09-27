@@ -1,0 +1,1 @@
+- Walk texts are fact-grounded: generate-balade/facts.ts collects commune_pois + Wikipédia geosearch + Mérimée (data.gouv tabular API, resource 3a52af4a…) within 150 m, and the AI may only cite those facts; bump PROMPT_VERSION when the prompt changes. Why: invented facts are unacceptable to partner towns.

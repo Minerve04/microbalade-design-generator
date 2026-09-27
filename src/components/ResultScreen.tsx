@@ -9,6 +9,8 @@ export interface BaladeStep {
   title: string;
   description: string;
   place?: string;
+  fact_ids?: string[];
+  sources?: { label: string; url: string | null }[];
 }
 
 export interface BaladeResult {
@@ -18,6 +20,7 @@ export interface BaladeResult {
   walking_distance_meters?: number;
   origin_postcode?: string | null;
   origin_city?: string | null;
+  origin_label?: string | null;
   route_geometry?: [number, number][];
   waypoints?: { lat: number; lon: number; label: string }[];
 }
@@ -150,10 +153,42 @@ const ResultScreen = ({ result, duration, onBack }: ResultScreenProps) => {
                     <p className="text-xs font-medium text-primary mb-1.5 truncate">{step.place}</p>
                   )}
                   <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
+                  <p className="mt-2 text-[11px] text-muted-foreground/80 leading-snug">
+                    {step.sources && step.sources.length > 0 ? (
+                      <>
+                        Sources :{" "}
+                        {step.sources.map((src, i) => (
+                          <span key={i}>
+                            {i > 0 && " · "}
+                            {src.url ? (
+                              <a href={src.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-primary">
+                                {src.label}
+                              </a>
+                            ) : (
+                              src.label
+                            )}
+                          </span>
+                        ))}
+                      </>
+                    ) : (
+                      "Observation sur place"
+                    )}
+                  </p>
                 </div>
               </div>
             </motion.div>
           ))}
+          <p className="text-[11px] text-muted-foreground text-center px-2 leading-relaxed">
+            Textes générés à partir de Wikipédia, de la base Mérimée et des informations de la Ville quand elles existent.{" "}
+            <a
+              href={`mailto:contact@microbalade.com?subject=${encodeURIComponent(
+                `Signaler une erreur — balade depuis ${result.origin_label || result.origin_city || "adresse inconnue"}`
+              )}`}
+              className="underline underline-offset-2 hover:text-primary"
+            >
+              Signaler une erreur
+            </a>
+          </p>
         </div>
 
         <motion.button

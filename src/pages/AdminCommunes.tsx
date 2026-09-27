@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Trash2, Plus, Save, Upload, Download, Loader2 } from "lucide-react";
@@ -298,6 +299,7 @@ const AdminCommunes = () => {
           <TabsTrigger value="communes">Communes partenaires</TabsTrigger>
           <TabsTrigger value="chorus">Chorus Pro</TabsTrigger>
           <TabsTrigger value="stats">Statistiques</TabsTrigger>
+          <TabsTrigger value="pois">Lieux</TabsTrigger>
         </TabsList>
 
         <TabsContent value="communes" className="mt-6">
@@ -432,6 +434,10 @@ const AdminCommunes = () => {
               </Card>
             ))}
           </div>
+        </TabsContent>
+
+        <TabsContent value="pois" className="mt-6">
+          <AdminPois call={call} />
         </TabsContent>
 
         <TabsContent value="chorus" className="mt-6 space-y-3">
@@ -713,3 +719,69 @@ const LogoDropzone = ({ uploading, currentUrl, onFile, onClear }: LogoDropzonePr
 };
 
 export default AdminCommunes;
+
+function AdminPois({ call }: { call: (action: string, payload?: any) => Promise<any> }) {
+  const [cp, setCp] = useState("");
+  const [rows, setRows] = useState<any[]>([]);
+  const [busy, setBusy] = useState(false);
+  const load = async () => {
+    setBusy(true);
+    try {
+      const res = await call("list_pois", { code_postal: cp.trim() || undefined });
+      setRows(res.data ?? []);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const update = async (id: string, fields: Record<string, unknown>) => {
+    try {
+      const res = await call("update_poi", { id, ...fields });
+      setRows((r) => r.map((x) => (x.id === id ? res.data : x)));
+      toast.success("Lieu mis à jour");
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+  const remove = async (id: string) => {
+    if (!confirm("Supprimer ce lieu ?")) return;
+    try {
+      await call("delete_poi", { id });
+      setRows((r) => r.filter((x) => x.id !== id));
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+  return (
+    <div className="space-y-3">
+      <Card className="p-4 flex gap-3 items-end">
+        <div className="flex-1">
+          <Label>Code postal (vide = tous)</Label>
+          <Input value={cp} onChange={(e) => setCp(e.target.value)} placeholder="62500" />
+        </div>
+        <Button onClick={load} disabled={busy}>{busy ? "Chargement…" : "Afficher"}</Button>
+      </Card>
+      {rows.length === 0 && <p className="text-sm text-muted-foreground">Aucun lieu.</p>}
+      {rows.map((p) => (
+        <Card key={p.id} className="p-4 space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold">{p.nom} <span className="text-xs text-muted-foreground">· {p.code_postal} · {p.categorie}</span></p>
+              <p className="text-xs text-muted-foreground">{Number(p.lat).toFixed(5)}, {Number(p.lon).toFixed(5)}{p.url_source ? ` · ${p.url_source}` : ""}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={p.active} onCheckedChange={(v) => update(p.id, { active: v })} />
+              <Button variant="destructive" size="sm" onClick={() => remove(p.id)}>Supprimer</Button>
+            </div>
+          </div>
+          <Textarea
+            defaultValue={p.description}
+            maxLength={800}
+            onBlur={(e) => e.target.value !== p.description && update(p.id, { description: e.target.value })}
+          />
+        </Card>
+      ))}
+    </div>
+  );
+}

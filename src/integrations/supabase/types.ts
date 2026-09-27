@@ -50,6 +50,51 @@ export type Database = {
         }
         Relationships: []
       }
+      commune_pois: {
+        Row: {
+          active: boolean
+          categorie: string
+          code_postal: string
+          commune_user_id: string
+          created_at: string
+          description: string
+          id: string
+          lat: number
+          lon: number
+          nom: string
+          updated_at: string
+          url_source: string | null
+        }
+        Insert: {
+          active?: boolean
+          categorie?: string
+          code_postal: string
+          commune_user_id: string
+          created_at?: string
+          description?: string
+          id?: string
+          lat: number
+          lon: number
+          nom: string
+          updated_at?: string
+          url_source?: string | null
+        }
+        Update: {
+          active?: boolean
+          categorie?: string
+          code_postal?: string
+          commune_user_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          lat?: number
+          lon?: number
+          nom?: string
+          updated_at?: string
+          url_source?: string | null
+        }
+        Relationships: []
+      }
       commune_profiles: {
         Row: {
           abonnement_label: string
@@ -254,8 +299,27 @@ export type Database = {
         }
         Relationships: []
       }
+      facts_cache: {
+        Row: {
+          cache_key: string
+          created_at: string
+          payload: Json
+        }
+        Insert: {
+          cache_key: string
+          created_at?: string
+          payload: Json
+        }
+        Update: {
+          cache_key?: string
+          created_at?: string
+          payload?: Json
+        }
+        Relationships: []
+      }
       generation_requests: {
         Row: {
+          ai_retried: boolean | null
           cache_hit: boolean
           created_at: string
           duration_ms: number | null
@@ -263,8 +327,10 @@ export type Database = {
           id: string
           ip: string
           status: string
+          unsourced_count: number | null
         }
         Insert: {
+          ai_retried?: boolean | null
           cache_hit?: boolean
           created_at?: string
           duration_ms?: number | null
@@ -272,8 +338,10 @@ export type Database = {
           id?: string
           ip: string
           status: string
+          unsourced_count?: number | null
         }
         Update: {
+          ai_retried?: boolean | null
           cache_hit?: boolean
           created_at?: string
           duration_ms?: number | null
@@ -281,6 +349,7 @@ export type Database = {
           id?: string
           ip?: string
           status?: string
+          unsourced_count?: number | null
         }
         Relationships: []
       }
@@ -415,6 +484,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      commune_is_subscribed: { Args: { _uid: string }; Returns: boolean }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean

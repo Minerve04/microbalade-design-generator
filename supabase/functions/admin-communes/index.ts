@@ -209,6 +209,39 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === "list_pois") {
+      const { code_postal } = payload ?? {};
+      let q = supabase.from("commune_pois").select("*").order("code_postal").order("nom").limit(1000);
+      if (code_postal) q = q.eq("code_postal", String(code_postal));
+      const { data, error } = await q;
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (action === "update_poi") {
+      const { id, ...raw } = payload ?? {};
+      if (!id) return json({ error: "id requis" }, 400);
+      const ALLOWED = ["nom", "description", "categorie", "lat", "lon", "url_source", "active"];
+      const fields: Record<string, unknown> = {};
+      for (const k of ALLOWED) if (k in raw) fields[k] = raw[k];
+      if (typeof fields.description === "string" && fields.description.length > 800) {
+        return json({ error: "Description trop longue (800 max)" }, 400);
+      }
+      if (fields.url_source === "") fields.url_source = null;
+      if (fields.url_source && !isHttpUrl(String(fields.url_source))) return json({ error: "url_source invalide" }, 400);
+      const { data, error } = await supabase.from("commune_pois").update(fields).eq("id", id).select().single();
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (action === "delete_poi") {
+      const { id } = payload ?? {};
+      if (!id) return json({ error: "id requis" }, 400);
+      const { error } = await supabase.from("commune_pois").delete().eq("id", id);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+
     return json({ error: "Unknown action" }, 400);
   } catch (e: any) {
     return json({ error: e.message ?? String(e) }, 500);
