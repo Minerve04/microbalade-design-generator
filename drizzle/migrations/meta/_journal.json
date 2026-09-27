@@ -8,6 +8,13 @@
       "when": 1790531844478,
       "tag": "0000_security_billing_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790532020486,
+      "tag": "0001_balade_cache_and_generation_requests",
+      "breakpoints": true
     }
   ]
 }
