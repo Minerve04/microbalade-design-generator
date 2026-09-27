@@ -54,6 +54,10 @@ const Index = () => {
         setNotice("Cette commune n'est pas encore partenaire.");
         return;
       }
+      // Display name: capitalise if the town typed it in lowercase
+      if (page.nom === page.nom.toLowerCase()) {
+        page.nom = page.nom.replace(/(^|[\s-])(\p{L})/gu, (_m, sep, ch) => sep + ch.toUpperCase());
+      }
       setCommune(page);
 
       // One visit per browser session and per town
@@ -67,17 +71,18 @@ const Index = () => {
 
       // Town centre as default start point
       try {
-        const q = new URLSearchParams({ nom: page.nom, fields: "nom,centre,codesPostaux", boost: "population", limit: "1" });
+        const q = new URLSearchParams({ nom: page.nom, fields: "nom,centre,mairie,codesPostaux", boost: "population", limit: "1" });
         if (page.code_postal) q.set("codePostal", page.code_postal);
         const r = await fetch(`https://geo.api.gouv.fr/communes?${q}`);
         const list = await r.json();
         const c = list?.[0];
-        if (!cancelled && c?.centre?.coordinates) {
+        const pt = c?.mairie?.coordinates ?? c?.centre?.coordinates;
+        if (!cancelled && pt) {
           const cp = page.code_postal || c.codesPostaux?.[0] || "";
           setInitialLocation({
-            label: `${c.nom}${cp ? ` ${cp}` : ""} (centre)`,
-            lon: c.centre.coordinates[0],
-            lat: c.centre.coordinates[1],
+            label: `Mairie, ${c.nom}${cp ? ` ${cp}` : ""}`,
+            lon: pt[0],
+            lat: pt[1],
           });
         }
       } catch {
