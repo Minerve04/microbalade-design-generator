@@ -686,6 +686,8 @@ serve(async (req) => {
       if (routeCounter.calls + ANGLE_TEMPLATES.length > MAX_ROUTE_CALLS) break;
       const results = await Promise.allSettled(
         ANGLE_TEMPLATES.map(async (angles, t) => {
+          // Étalement léger : la Géoplateforme limite à ~5 requêtes/s par IP.
+          await new Promise((res) => setTimeout(res, t * 220));
           const loop = angles.map((a) => offsetCoordinate(originCoord, radii[t], a));
           const route = await getWalkingRoute([originCoord, ...loop, originCoord]);
           return { t, loop, route };
