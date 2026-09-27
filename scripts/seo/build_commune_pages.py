@@ -39,7 +39,9 @@ DEPT_NAMES = {"62": "Pas-de-Calais", "59": "Nord", "80": "Somme", "02": "Aisne",
 EXCLUDE_TITLE = re.compile(
     r"^(liste|canton|arrondissement|communauté|élections?|gare|bataille|siège|"
     r"combat|us |as |rc |fc |es |sc |club|stade|collège|lycée|école|autoroute|route|"
-    r"ligne|diocèse|doyenné|paroisse|circonscription|intercommunalité|pays )",
+    r"ligne|diocèse|doyenné|paroisse|circonscription|intercommunalité|pays |unité urbaine|aire d'attraction|"
+    r"centre pénitentiaire|maison d'arrêt|prison de|aérodrome|aéroport|hippodrome|société |institution |"
+    r"bassin |zone |parc d'activités|centre hospitalier|clinique|piscine|salle )",
     re.I,
 )
 
@@ -145,8 +147,9 @@ def fetch_merimee(dept: str):
         year = re.findall(r"(\d{4})/\d{2}/\d{2}", prot)
         typ = "classé" if "classé" in prot else ("inscrit" if "inscrit" in prot else "protégé")
         parts = []
-        denom = r.get("Denomination_de_l_edifice")
+        denom = (r.get("Denomination_de_l_edifice") or "").replace(";", " et ") or None
         siecle = r.get("Siecle_de_la_campagne_principale_de_construction") or r.get("Format_abrege_du_siecle_de_construction")
+        siecle = ", ".join(x.strip() for x in siecle.split(";")) if siecle else None
         if denom and norm(denom) not in norm(titre):
             parts.append(denom.capitalize())
         if siecle:
@@ -182,6 +185,7 @@ def fetch_wikipedia(commune, radius_m: int):
     hits = [
         h for h in hits
         if norm(h["title"]) != name_n
+        and not norm(h["title"].split(" (")[0]) == name_n
         and not EXCLUDE_TITLE.search(h["title"])
         and in_contour(h["lon"], h["lat"], commune.get("contour"))
     ]
@@ -215,16 +219,35 @@ def fetch_mairie(commune):
     return pt[1], pt[0], label
 
 
-def merge_places(mh, wiki):
+STOP = {"de", "du", "des", "la", "le", "les", "l", "d", "et", "a", "au", "aux", "saint", "sainte",
+        "ancien", "ancienne", "actuellement", "puis", "ou", "dit", "dite", "en", "sur"}
+
+
+def words(name: str, commune: str) -> set:
+    toks = set(re.findall(r"[a-z0-9]+", slugify(name).replace("-", " ")))
+    return {t for t in toks if len(t) > 2 and t not in STOP} - set(re.findall(r"[a-z0-9]+", slugify(commune).replace("-", " ")))
+
+
+def merge_places(mh, wiki, commune_nom=""):
     """Rattache un article Wikipédia au monument correspondant plutôt que de le dupliquer."""
     out = list(mh)
     for w in wiki:
-        twin = next((m for m in out if m["source"].startswith("Base Mérimée")
-                     and (norm(m["nom"]) in norm(w["nom"]) or norm(w["nom"]) in norm(m["nom"]))
-                     and len(norm(m["nom"])) > 6 and haversine((m["lat"], m["lon"]), (w["lat"], w["lon"])) < 400), None)
-        if twin:
-            twin["wiki"] = {"texte": w["texte"], "url": w["url"]}
-            twin["has_hist"] = True
+        ww = words(w["nom"], commune_nom)
+        best, score = None, 0.0
+        for m in out:
+            if not m["source"].startswith("Base Mérimée") or m.get("wiki"):
+                continue
+            if haversine((m["lat"], m["lon"]), (w["lat"], w["lon"])) > 350:
+                continue
+            mw = words(m["nom"], commune_nom)
+            if not mw or not ww:
+                continue
+            sc = len(mw & ww) / min(len(mw), len(ww))
+            if sc > score:
+                best, score = m, sc
+        if best and score >= 0.5:
+            best["wiki"] = {"texte": w["texte"], "url": w["url"]}
+            best["has_hist"] = True
         else:
             out.append(w)
     return out
@@ -365,7 +388,7 @@ def partner_slugs(supabase_url: str | None, anon: str | None):
         return {}
     try:
         req = urllib.request.Request(
-            f"{supabase_url}/rest/v1/communes_partenaires?select=slug,code_postal,nom&active=eq.true",
+            f"{supabase_url}/rest/v1/communes_partenaires?select=slug,code_postal,nom&active=eq.true&commune_user_id=not.is.null",
             headers={"apikey": anon, "Authorization": f"Bearer {anon}", "User-Agent": UA})
         with urllib.request.urlopen(req, timeout=20) as r:
             rows = json.load(r)
@@ -408,7 +431,7 @@ def main():
         surface_m2 = (c.get("surface") or 1000) * 10000
         radius = int(max(1500, min(10000, math.sqrt(surface_m2 / math.pi) * 1.3)))
         wiki = fetch_wikipedia(c, radius)
-        places = merge_places(mh.get(c["code"], []), wiki)
+        places = merge_places(mh.get(c["code"], []), wiki, c["nom"])
         rich = [p for p in places if richness(p)]
         # tri : monuments classés, puis lieux avec histoire, puis le reste
         rich.sort(key=lambda p: (not p["classe"], not (p["has_hist"] or p.get("wiki")), p["nom"]))
