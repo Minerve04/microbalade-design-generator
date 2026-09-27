@@ -29,6 +29,13 @@
       "when": 1790536400633,
       "tag": "0003_commune_tier_at_signup",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790537125663,
+      "tag": "0004_commune_pages_and_visits",
+      "breakpoints": true
     }
   ]
 }

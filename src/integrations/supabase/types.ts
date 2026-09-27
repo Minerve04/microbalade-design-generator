@@ -186,6 +186,7 @@ export type Database = {
           lien_action: string | null
           logo_url: string | null
           nom: string
+          slug: string | null
           updated_at: string
         }
         Insert: {
@@ -197,6 +198,7 @@ export type Database = {
           lien_action?: string | null
           logo_url?: string | null
           nom: string
+          slug?: string | null
           updated_at?: string
         }
         Update: {
@@ -208,6 +210,7 @@ export type Database = {
           lien_action?: string | null
           logo_url?: string | null
           nom?: string
+          slug?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -353,34 +356,61 @@ export type Database = {
         }
         Relationships: []
       }
+      page_visits: {
+        Row: {
+          commune_slug: string
+          created_at: string
+          id: string
+          source: string
+        }
+        Insert: {
+          commune_slug: string
+          created_at?: string
+          id?: string
+          source?: string
+        }
+        Update: {
+          commune_slug?: string
+          created_at?: string
+          id?: string
+          source?: string
+        }
+        Relationships: []
+      }
       statistiques_recherches: {
         Row: {
           code_postal: string | null
+          commune_slug: string | null
           created_at: string
           duree_minutes: number | null
           id: string
           monuments: string[] | null
           origin_address: string | null
+          source: string | null
           themes: string[] | null
           ville: string | null
         }
         Insert: {
           code_postal?: string | null
+          commune_slug?: string | null
           created_at?: string
           duree_minutes?: number | null
           id?: string
           monuments?: string[] | null
           origin_address?: string | null
+          source?: string | null
           themes?: string[] | null
           ville?: string | null
         }
         Update: {
           code_postal?: string | null
+          commune_slug?: string | null
           created_at?: string
           duree_minutes?: number | null
           id?: string
           monuments?: string[] | null
           origin_address?: string | null
+          source?: string | null
           themes?: string[] | null
           ville?: string | null
         }
@@ -501,6 +531,11 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      get_commune_page: { Args: { p_slug: string }; Returns: Json }
+      get_my_commune_traffic: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
       has_active_subscription: {
         Args: { check_env?: string; user_uuid: string }
         Returns: boolean
@@ -539,7 +574,12 @@ export type Database = {
         }
         Returns: undefined
       }
+      resolve_legacy_commune: {
+        Args: { p_commune: string; p_cp: string }
+        Returns: string
+      }
       set_pending_tier: { Args: { p_lookup_key: string }; Returns: undefined }
+      slugify_commune: { Args: { _txt: string }; Returns: string }
     }
     Enums: {
       app_role: "admin"
