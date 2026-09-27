@@ -96,6 +96,8 @@ const AdminCommunes = () => {
     }
   };
 
+  const [health, setHealth] = useState<{ success: number; failed: number; cache_rate: number; median_ms: number } | null>(null);
+
   const call = async (action: string, payload?: any) => {
     const { data, error } = await supabase.functions.invoke("admin-communes", {
       body: { password, action, payload },
@@ -157,6 +159,7 @@ const AdminCommunes = () => {
       if (codePostal && codePostal !== "all") payload.code_postal = codePostal;
       const res = await call("list_stats", payload);
       setStats(res.data ?? []);
+      call("health").then((h) => setHealth(h.data ?? null)).catch(() => setHealth(null));
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -525,9 +528,10 @@ const AdminCommunes = () => {
 
           {(() => {
             const balades = stats.length;
-            const aiCalls = balades * 2; // 1 plan + 1 titre par balade
-            const costUsd = balades * 0.002; // estimation Gemini 2.5 Flash
+            const aiCalls = balades; // 1 seul appel IA par balade
+            const costUsd = balades * 0.004; // estimation Gemini 2.5 Flash
             return (
+              <>
               <Card className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
                 <div>
                   <div className="text-2xl font-semibold">{balades}</div>
@@ -546,6 +550,27 @@ const AdminCommunes = () => {
                   <div className="text-xs text-muted-foreground">Coût / balade</div>
                 </div>
               </Card>
+              {health && (
+                <Card className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                  <div>
+                    <div className="text-2xl font-semibold">{health.success}</div>
+                    <div className="text-xs text-muted-foreground">Réussies (30 j)</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-semibold">{health.failed}</div>
+                    <div className="text-xs text-muted-foreground">Échouées (30 j)</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-semibold">{Math.round(health.cache_rate * 100)} %</div>
+                    <div className="text-xs text-muted-foreground">Taux de cache</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-semibold">{(health.median_ms / 1000).toFixed(1)} s</div>
+                    <div className="text-xs text-muted-foreground">Durée médiane</div>
+                  </div>
+                </Card>
+              )}
+              </>
             );
           })()}
 

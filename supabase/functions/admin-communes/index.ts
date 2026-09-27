@@ -121,6 +121,30 @@ Deno.serve(async (req) => {
       return json({ data });
     }
 
+    if (action === "health") {
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from("generation_requests")
+        .select("status,cache_hit,duration_ms")
+        .gte("created_at", since)
+        .limit(50000);
+      if (error) throw error;
+      const rows = data ?? [];
+      const ok = rows.filter((r) => r.status === "success");
+      const failed = rows.filter((r) => r.status === "error").length;
+      const cacheHits = ok.filter((r) => r.cache_hit).length;
+      const durations = ok.map((r) => r.duration_ms ?? 0).sort((a, b) => a - b);
+      const median = durations.length ? durations[Math.floor(durations.length / 2)] : 0;
+      return json({
+        data: {
+          success: ok.length,
+          failed,
+          cache_rate: ok.length ? cacheHits / ok.length : 0,
+          median_ms: median,
+        },
+      });
+    }
+
     if (action === "list_chorus") {
       const { status } = payload ?? {};
       let q = supabase
