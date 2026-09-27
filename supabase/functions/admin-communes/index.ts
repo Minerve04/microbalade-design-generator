@@ -209,6 +209,54 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === "list_pilots") {
+      const { data, error } = await supabase
+        .from("pilot_requests")
+        .select("id, commune_nom, code_postal, population, contact_nom, fonction, email, telephone, message, status, created_at")
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (action === "update_pilot_status") {
+      const { id, status } = payload ?? {};
+      if (!id || !["nouveau", "contacte", "pilote_actif", "refuse"].includes(status)) return json({ error: "Paramètres invalides" }, 400);
+      const { error } = await supabase.from("pilot_requests").update({ status }).eq("id", id);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+
+    if (action === "activate_pilot") {
+      const { id } = payload ?? {};
+      if (!id) return json({ error: "id requis" }, 400);
+      const { data: reqRow, error: e1 } = await supabase.from("pilot_requests").select("email").eq("id", id).single();
+      if (e1) throw e1;
+      const { data: prof } = await supabase
+        .from("commune_profiles")
+        .select("user_id, status_abonnement, abonnement_prix_annuel")
+        .ilike("email", reqRow.email)
+        .maybeSingle();
+      if (!prof) return json({ data: { found: false } });
+      if (prof.status_abonnement === "active" && (prof.abonnement_prix_annuel ?? 0) > 0) {
+        return json({ error: "Cette commune a déjà un abonnement payant actif." }, 409);
+      }
+      const end = new Date();
+      end.setMonth(end.getMonth() + 3);
+      const { error: e2 } = await supabase
+        .from("commune_profiles")
+        .update({
+          status_abonnement: "active",
+          abonnement_label: "Pilote gratuit 3 mois",
+          abonnement_prix_annuel: 0,
+          abonnement_renouvellement: end.toISOString().slice(0, 10),
+        })
+        .eq("user_id", prof.user_id);
+      if (e2) throw e2;
+      await supabase.from("pilot_requests").update({ status: "pilote_actif" }).eq("id", id);
+      return json({ data: { found: true, until: end.toISOString().slice(0, 10) } });
+    }
+
     if (action === "list_pois") {
       const { code_postal } = payload ?? {};
       let q = supabase.from("commune_pois").select("*").order("code_postal").order("nom").limit(1000);
