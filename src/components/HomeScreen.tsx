@@ -13,12 +13,24 @@ const interests = [
   { id: "history", emoji: "👻", label: "Histoire insolite" },
 ];
 
+export interface CommunePageData {
+  slug: string;
+  nom: string;
+  code_postal: string | null;
+  logo_url: string | null;
+  lien_action: string | null;
+  pois: { nom: string; categorie: string; description: string }[];
+}
+
 interface HomeScreenProps {
   onGenerate: (data: { location: string; duration: number; interests: string[]; lat?: number; lon?: number }) => void;
   loading?: boolean;
+  commune?: CommunePageData | null;
+  initialLocation?: { label: string; lat: number; lon: number } | null;
+  notice?: string | null;
 }
 
-const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
+const HomeScreen = ({ onGenerate, loading, commune, initialLocation, notice }: HomeScreenProps) => {
   const [location, setLocation] = useState("");
   const [duration, setDuration] = useState(30);
   const [selected, setSelected] = useState<string[]>([]);
@@ -28,6 +40,13 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const skipNextFetch = useRef(false);
+
+  useEffect(() => {
+    if (!initialLocation) return;
+    skipNextFetch.current = true;
+    setLocation(initialLocation.label);
+    setCoords({ lat: initialLocation.lat, lon: initialLocation.lon });
+  }, [initialLocation]);
 
   useEffect(() => {
     if (skipNextFetch.current) {
@@ -135,21 +154,46 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
           Partenaires
         </Link>
       </nav>
-      <Helmet>
-        <title>Microbalade — Transformez votre attente en découverte</title>
-        <meta name="description" content="Générez des micro-balades personnalisées autour de vous. Architecture, nature, street-art, histoire insolite." />
-        <link rel="canonical" href="https://microbalade.fr/" />
-        <meta property="og:title" content="Microbalade — Transformez votre attente en découverte" />
-        <meta property="og:description" content="Générez des micro-balades personnalisées autour de vous. Architecture, nature, street-art, histoire insolite." />
-        <meta property="og:url" content="https://microbalade.fr/" />
-        <meta property="og:type" content="website" />
-      </Helmet>
+      {commune ? (
+        <Helmet>
+          <title>{`Les microbalades de la Ville de ${commune.nom} — Microbalade`}</title>
+          <meta name="description" content={`Balades guidées de 15 min à 2 h à ${commune.nom} : choisissez votre temps, laissez-vous guider. Gratuit, sans application.`} />
+          <link rel="canonical" href={`https://microbalade.fr/${commune.slug}`} />
+          <meta property="og:title" content={`Les microbalades de la Ville de ${commune.nom}`} />
+          <meta property="og:description" content={`Balades guidées de 15 min à 2 h à ${commune.nom}. Gratuit, sans application.`} />
+          <meta property="og:url" content={`https://microbalade.fr/${commune.slug}`} />
+          <meta property="og:type" content="website" />
+        </Helmet>
+      ) : (
+    <Helmet>
+          <title>Microbalade — Transformez votre attente en découverte</title>
+          <meta name="description" content="Générez des micro-balades personnalisées autour de vous. Architecture, nature, street-art, histoire insolite." />
+          <link rel="canonical" href="https://microbalade.fr/" />
+          <meta property="og:title" content="Microbalade — Transformez votre attente en découverte" />
+          <meta property="og:description" content="Générez des micro-balades personnalisées autour de vous. Architecture, nature, street-art, histoire insolite." />
+          <meta property="og:url" content="https://microbalade.fr/" />
+          <meta property="og:type" content="website" />
+        </Helmet>
+      )}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
         className="w-full max-w-md flex flex-col gap-8"
       >
+        {commune ? (
+          <div className="text-center space-y-3 flex flex-col items-center">
+            {commune.logo_url && (
+              <img src={commune.logo_url} alt={`Logo de ${commune.nom}`} className="h-20 w-auto max-w-[220px] object-contain" />
+            )}
+            <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
+              Les microbalades de la Ville de <span className="text-primary">{commune.nom}</span>
+            </h1>
+            <p className="text-muted-foreground text-sm flex items-center gap-1.5">
+              <img src={logo} alt="" className="h-4 w-auto" /> avec Microbalade
+            </p>
+          </div>
+        ) : (
         <div className="text-center space-y-3 flex flex-col items-center">
           <img src={logo} alt="Logo Microbalade" className="h-16 w-auto" />
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
@@ -159,7 +203,9 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
           <p className="text-muted-foreground text-base">
             Transformez votre attente en découverte
           </p>
+          {notice && <p className="text-xs text-muted-foreground/80">{notice}</p>}
         </div>
+        )}
 
         <div className="glass-card relative z-30 rounded-2xl p-4">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
@@ -278,6 +324,24 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
             "Générer ma Microbalade"
           )}
         </motion.button>
+
+        {commune && commune.pois.length > 0 && (
+          <section className="glass-card rounded-2xl p-4">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+              Lieux à découvrir
+            </h2>
+            <ul className="space-y-3">
+              {commune.pois.map((p) => (
+                <li key={p.nom}>
+                  <div className="text-sm font-semibold text-foreground">{p.nom}</div>
+                  <div className="text-[11px] uppercase tracking-wide text-primary">{p.categorie}</div>
+                  {p.description && <p className="text-sm text-muted-foreground mt-0.5">{p.description}</p>}
+                </li>
+              ))}
+            </ul>
+            <p className="text-[11px] text-muted-foreground mt-3">Lieux validés par la Ville de {commune.nom}.</p>
+          </section>
+        )}
 
         <footer className="text-center pt-2 flex items-center justify-center gap-3">
           <Link
