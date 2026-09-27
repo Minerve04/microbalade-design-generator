@@ -31,8 +31,8 @@
  },
  {
   "commune": "Aire-sur-la-Lys",
-  "lieux": 22,
-  "mh": 17
+  "lieux": 21,
+  "mh": 16
  },
  {
   "commune": "Montreuil-sur-Mer",
@@ -130,11 +130,6 @@
   "mh": 3
  },
  {
-  "commune": "Neufchâtel-Hardelot",
-  "lieux": 6,
-  "mh": 3
- },
- {
   "commune": "Condette",
   "lieux": 6,
   "mh": 1
@@ -183,11 +178,6 @@
   "commune": "Saint-Pol-sur-Ternoise",
   "lieux": 5,
   "mh": 2
- },
- {
-  "commune": "Wimille",
-  "lieux": 5,
-  "mh": 4
  },
  {
   "commune": "Gonnehem",
@@ -266,6 +256,16 @@
  },
  {
   "commune": "Ardres",
+  "lieux": 4,
+  "mh": 3
+ },
+ {
+  "commune": "Neufchâtel-Hardelot",
+  "lieux": 4,
+  "mh": 1
+ },
+ {
+  "commune": "Wimille",
   "lieux": 4,
   "mh": 3
  },
