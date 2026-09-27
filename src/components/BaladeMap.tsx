@@ -28,7 +28,7 @@ const BaladeMap = ({ geometry, waypoints }: Props) => {
   const latlngs = geometry.map(([lon, lat]) => [lat, lon] as [number, number]);
   const center = latlngs[0] ?? [waypoints[0]?.lat ?? 46.6, waypoints[0]?.lon ?? 2.5];
   return (
-    <MapContainer center={center} zoom={15} scrollWheelZoom={false} className="absolute inset-0 z-0" attributionControl>
+    <MapContainer center={center} zoom={15} scrollWheelZoom={false} zoomControl={false} className="absolute inset-0 z-0" attributionControl>
       <TileLayer
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
