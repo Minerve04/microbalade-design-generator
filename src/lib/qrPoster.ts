@@ -142,7 +142,8 @@ export async function buildPoster(input: PosterInput): Promise<Uint8Array> {
 
   // Title
   const titleSize = 30 * s;
-  for (const line of wrap("Une balade de 15 min à 2 h, tout près d'ici", fXb, titleSize, W - 110 * s)) {
+  const titleLines = ["Une balade de 15 min à 2 h,", "tout près d'ici"].flatMap((l) => wrap(l, fXb, titleSize, W - 80 * s));
+  for (const line of titleLines) {
     y -= titleSize;
     centerText(page, line, fXb, titleSize, y, ink);
     y -= 6 * s;
@@ -183,13 +184,13 @@ export async function buildPoster(input: PosterInput): Promise<Uint8Array> {
 
   // Microbalade footer
   const micro = await doc.embedPng(input.microLogo);
-  const md = fitImage(micro, 60 * s, 22 * s);
+  const md = fitImage(micro, 90 * s, 34 * s);
   const label = "Microbalade";
-  const lSize = 11 * s;
+  const lSize = 14 * s;
   const lw = fSemi.widthOfTextAtSize(label, lSize);
   const total = md.width + 6 * s + lw;
   const fx = (W - total) / 2;
-  const fy = 30 * s;
+  const fy = 36 * s;
   page.drawImage(micro, { x: fx, y: fy, ...md });
   page.drawText(label, { x: fx + md.width + 6 * s, y: fy + (md.height - lSize) / 2 + 2 * s, size: lSize, font: fSemi, color: grey });
 
