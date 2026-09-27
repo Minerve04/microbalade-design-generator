@@ -167,6 +167,24 @@ export default function CommuneDashboard() {
   const [lienAction, setLienAction] = useState("");
   const [codePostal, setCodePostal] = useState("");
 
+  // Palier en attente (choisi sur /partenaires) : ouvrir directement le paiement au bon palier.
+  const autoPayDone = useRef(false);
+  useEffect(() => {
+    if (autoPayDone.current || !profile || loadingSub || !neverPaid) return;
+    const qp = new URLSearchParams(window.location.search).get("pay");
+    const pending = qp || sessionStorage.getItem("pendingCheckoutPriceId");
+    if (!pending || !VALID_PRICE_IDS.includes(pending) || pending === "commune_metropole_xl_year") return;
+    autoPayDone.current = true;
+    sessionStorage.removeItem("pendingCheckoutPriceId");
+    sessionStorage.removeItem("pendingCommune");
+    (async () => {
+      if (getCommunePriceIdFromAmount(profile.abonnement_prix_annuel) !== pending) await changeTier(pending);
+      setTab("profile");
+      handlePay(pending);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, loadingSub, neverPaid]);
+
   useEffect(() => {
     if (!user) return;
     (async () => {
