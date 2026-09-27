@@ -11,6 +11,8 @@ const logSearchStat = async (row: {
   themes: string[];
   monuments: string[];
   origin_address: string | null;
+  source?: string | null;
+  commune_slug?: string | null;
 }) => {
   try {
     const url = Deno.env.get("SUPABASE_URL");
@@ -620,6 +622,8 @@ serve(async (req) => {
   try {
     const body = await req.json();
     const { location, duration, interests } = body;
+    const statSource = ["qr", "page", "direct"].includes(body.source) ? body.source : "direct";
+    const statSlug = typeof body.commune_slug === "string" && /^[a-z0-9-]{1,80}$/.test(body.commune_slug) ? body.commune_slug : null;
     const latIn = Number(body.lat);
     const lonIn = Number(body.lon);
     const hasCoords =
@@ -684,6 +688,8 @@ serve(async (req) => {
           themes: interests as string[],
           monuments: (resp.waypoints ?? []).map((w: any) => w.label),
           origin_address: originLabel || resp.origin_label || null,
+          source: statSource,
+          commune_slug: statSlug,
         });
         logRequest("success", null, true);
         return jsonResponse({ ...resp, cache_hit: true, route_calls: 0 });
@@ -803,6 +809,8 @@ serve(async (req) => {
       themes: interests as string[],
       monuments: waypointLabels,
       origin_address: originLabel,
+      source: statSource,
+      commune_slug: statSlug,
     });
 
     const response = {
