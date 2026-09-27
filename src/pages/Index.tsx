@@ -24,7 +24,12 @@ const Index = () => {
 
     try {
       const { data: fnData, error } = await supabase.functions.invoke("generate-balade", {
-        body: { location: data.location, duration: data.duration, interests: data.interests },
+        body: {
+          location: data.location,
+          duration: data.duration,
+          interests: data.interests,
+          ...(data.lat !== undefined && data.lon !== undefined ? { lat: data.lat, lon: data.lon } : {}),
+        },
       });
 
       if (error) throw error;

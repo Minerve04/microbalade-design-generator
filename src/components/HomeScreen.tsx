@@ -14,7 +14,7 @@ const interests = [
 ];
 
 interface HomeScreenProps {
-  onGenerate: (data: { location: string; duration: number; interests: string[] }) => void;
+  onGenerate: (data: { location: string; duration: number; interests: string[]; lat?: number; lon?: number }) => void;
   loading?: boolean;
 }
 
@@ -23,7 +23,8 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
   const [duration, setDuration] = useState(30);
   const [selected, setSelected] = useState<string[]>([]);
   const [geoLoading, setGeoLoading] = useState(false);
-  const [suggestions, setSuggestions] = useState<Array<{ display_name: string }>>([]);
+  const [suggestions, setSuggestions] = useState<Array<{ label: string; lon: number; lat: number }>>([]);
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const skipNextFetch = useRef(false);
@@ -42,11 +43,20 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
       setSuggestLoading(true);
       try {
         const r = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&limit=5&addressdetails=1&accept-language=fr&q=${encodeURIComponent(location)}`,
+          `https://data.geopf.fr/geocodage/search?q=${encodeURIComponent(location)}&limit=5&autocomplete=1`,
           { signal: ctrl.signal }
         );
         const data = await r.json();
-        setSuggestions(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data?.features)
+          ? data.features
+              .filter((f: any) => Array.isArray(f?.geometry?.coordinates) && f?.properties?.label)
+              .map((f: any) => ({
+                label: f.properties.label as string,
+                lon: Number(f.geometry.coordinates[0]),
+                lat: Number(f.geometry.coordinates[1]),
+              }))
+          : [];
+        setSuggestions(list);
         setShowSuggestions(true);
       } catch {
         // ignore
@@ -60,9 +70,10 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
     };
   }, [location]);
 
-  const selectSuggestion = (name: string) => {
+  const selectSuggestion = (s: { label: string; lon: number; lat: number }) => {
     skipNextFetch.current = true;
-    setLocation(name);
+    setLocation(s.label);
+    setCoords({ lat: s.lat, lon: s.lon });
     setSuggestions([]);
     setShowSuggestions(false);
   };
@@ -77,17 +88,17 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
       async (pos) => {
         try {
           const { latitude, longitude } = pos.coords;
+          setCoords({ lat: latitude, lon: longitude });
+          skipNextFetch.current = true;
           const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=fr`
+            `https://data.geopf.fr/geocodage/reverse?lon=${longitude}&lat=${latitude}&limit=1`
           );
           const data = await res.json();
-          const parts = [
-            data.address?.road,
-            data.address?.city || data.address?.town || data.address?.village,
-          ].filter(Boolean);
+          const label = data?.features?.[0]?.properties?.label;
           skipNextFetch.current = true;
-          setLocation(parts.join(", ") || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+          setLocation(label || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
         } catch {
+          skipNextFetch.current = true;
           setLocation(`${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`);
         } finally {
           setGeoLoading(false);
@@ -161,7 +172,10 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
                 type="text"
                 placeholder="Où êtes-vous ?"
                 value={location}
-                onChange={(e) => setLocation(e.target.value)}
+                onChange={(e) => {
+                  setLocation(e.target.value);
+                  setCoords(null);
+                }}
                 onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                 autoComplete="off"
@@ -177,11 +191,11 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => selectSuggestion(s.display_name)}
+                        onClick={() => selectSuggestion(s)}
                         className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-secondary transition-colors flex items-start gap-2"
                       >
                         <MapPin size={14} className="text-primary mt-0.5 shrink-0" />
-                        <span className="line-clamp-2">{s.display_name}</span>
+                        <span className="line-clamp-2">{s.label}</span>
                       </button>
                     </li>
                   ))}
@@ -252,7 +266,7 @@ const HomeScreen = ({ onGenerate, loading }: HomeScreenProps) => {
         <motion.button
           whileTap={{ scale: 0.97 }}
           disabled={loading}
-          onClick={() => onGenerate({ location, duration, interests: selected })}
+          onClick={() => onGenerate({ location, duration, interests: selected, ...(coords ? { lat: coords.lat, lon: coords.lon } : {}) })}
           className="w-full bg-primary text-primary-foreground font-semibold text-base py-4 rounded-2xl shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all active:shadow-md disabled:opacity-70 flex items-center justify-center gap-2"
         >
           {loading ? (
