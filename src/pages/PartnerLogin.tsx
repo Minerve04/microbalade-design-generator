@@ -1,21 +1,44 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { motion } from "framer-motion";
 import { ArrowLeft, Loader2, Mail, Lock, Building2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { VALID_PRICE_IDS } from "@/lib/stripe";
 import logo from "@/assets/logo.png";
 
 type Mode = "login" | "signup";
 
+function readPendingCommune(): { nom?: string; codePostal?: string } {
+  try {
+    return JSON.parse(sessionStorage.getItem("pendingCommune") || "{}");
+  } catch {
+    return {};
+  }
+}
+
 export default function PartnerLogin() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<Mode>("login");
+  const [params] = useSearchParams();
+  const urlPrice = params.get("intent") === "checkout" ? params.get("priceId") : null;
+  const rawPrice = urlPrice || sessionStorage.getItem("pendingCheckoutPriceId");
+  const pendingPriceId = rawPrice && VALID_PRICE_IDS.includes(rawPrice) ? rawPrice : null;
+  const pendingCommune = readPendingCommune();
+  const [mode, setMode] = useState<Mode>(pendingPriceId ? "signup" : "login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [collectivite, setCollectivite] = useState("");
+  const [collectivite, setCollectivite] = useState(pendingCommune.nom ? `Mairie de ${pendingCommune.nom}` : "");
   const [loading, setLoading] = useState(false);
+
+  const goToDashboard = () => {
+    if (pendingPriceId) {
+      sessionStorage.setItem("pendingCheckoutPriceId", pendingPriceId);
+      navigate(`/dashboard/commune?pay=${encodeURIComponent(pendingPriceId)}`, { replace: true });
+    } else {
+      navigate("/dashboard/commune", { replace: true });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,22 +49,31 @@ export default function PartnerLogin() {
     setLoading(true);
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/dashboard/commune`,
-            data: { nom_collectivite: collectivite },
+            emailRedirectTo: `${window.location.origin}/dashboard/commune${pendingPriceId ? `?pay=${pendingPriceId}` : ""}`,
+            data: {
+              nom_collectivite: collectivite,
+              ...(pendingPriceId && { price_id: pendingPriceId }),
+              ...(pendingCommune.codePostal && { code_postal: pendingCommune.codePostal }),
+            },
           },
         });
         if (error) throw error;
-        toast.success("Compte créé ! Vérifiez votre email pour confirmer votre adresse.");
-        setMode("login");
+        if (data.session) {
+          toast.success("Compte créé !");
+          goToDashboard();
+        } else {
+          toast.success("Compte créé ! Vérifiez votre email pour confirmer votre adresse.");
+          setMode("login");
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         toast.success("Bienvenue sur votre espace partenaire");
-        navigate("/dashboard/commune", { replace: true });
+        goToDashboard();
       }
     } catch (err: any) {
       toast.error(err?.message ?? "Une erreur est survenue");
