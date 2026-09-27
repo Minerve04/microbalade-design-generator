@@ -14,3 +14,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://microbalade.fr/sitemap.xml
+Sitemap: https://microbalade.fr/sitemap-balades.xml

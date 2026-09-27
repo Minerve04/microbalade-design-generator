@@ -1,0 +1,552 @@
+[
+ {
+  "commune": "Calais",
+  "lieux": 24,
+  "mh": 9
+ },
+ {
+  "commune": "Arras",
+  "lieux": 24,
+  "mh": 16
+ },
+ {
+  "commune": "Boulogne-sur-Mer",
+  "lieux": 24,
+  "mh": 8
+ },
+ {
+  "commune": "Lens",
+  "lieux": 24,
+  "mh": 9
+ },
+ {
+  "commune": "Saint-Omer",
+  "lieux": 24,
+  "mh": 13
+ },
+ {
+  "commune": "Aire-sur-la-Lys",
+  "lieux": 24,
+  "mh": 14
+ },
+ {
+  "commune": "Le Touquet-Paris-Plage",
+  "lieux": 24,
+  "mh": 4
+ },
+ {
+  "commune": "Montreuil-sur-Mer",
+  "lieux": 24,
+  "mh": 17
+ },
+ {
+  "commune": "Béthune",
+  "lieux": 20,
+  "mh": 14
+ },
+ {
+  "commune": "Liévin",
+  "lieux": 17,
+  "mh": 3
+ },
+ {
+  "commune": "Hesdin-la-Forêt",
+  "lieux": 16,
+  "mh": 9
+ },
+ {
+  "commune": "Bruay-la-Buissière",
+  "lieux": 15,
+  "mh": 5
+ },
+ {
+  "commune": "Hénin-Beaumont",
+  "lieux": 14,
+  "mh": 1
+ },
+ {
+  "commune": "Loos-en-Gohelle",
+  "lieux": 13,
+  "mh": 2
+ },
+ {
+  "commune": "Berck",
+  "lieux": 12,
+  "mh": 4
+ },
+ {
+  "commune": "Étaples",
+  "lieux": 10,
+  "mh": 2
+ },
+ {
+  "commune": "Carvin",
+  "lieux": 9,
+  "mh": 2
+ },
+ {
+  "commune": "Avion",
+  "lieux": 9,
+  "mh": 0
+ },
+ {
+  "commune": "Nœux-les-Mines",
+  "lieux": 9,
+  "mh": 5
+ },
+ {
+  "commune": "Oignies",
+  "lieux": 8,
+  "mh": 3
+ },
+ {
+  "commune": "Auchel",
+  "lieux": 8,
+  "mh": 2
+ },
+ {
+  "commune": "Bully-les-Mines",
+  "lieux": 7,
+  "mh": 4
+ },
+ {
+  "commune": "Saint-Martin-Boulogne",
+  "lieux": 7,
+  "mh": 4
+ },
+ {
+  "commune": "Grenay",
+  "lieux": 7,
+  "mh": 2
+ },
+ {
+  "commune": "Neuville-Saint-Vaast",
+  "lieux": 7,
+  "mh": 1
+ },
+ {
+  "commune": "Rivière",
+  "lieux": 7,
+  "mh": 4
+ },
+ {
+  "commune": "Beuvry",
+  "lieux": 6,
+  "mh": 4
+ },
+ {
+  "commune": "Le Portel",
+  "lieux": 6,
+  "mh": 1
+ },
+ {
+  "commune": "Rouvroy",
+  "lieux": 6,
+  "mh": 1
+ },
+ {
+  "commune": "Wimereux",
+  "lieux": 6,
+  "mh": 3
+ },
+ {
+  "commune": "Saint-Pol-sur-Ternoise",
+  "lieux": 6,
+  "mh": 2
+ },
+ {
+  "commune": "Neufchâtel-Hardelot",
+  "lieux": 6,
+  "mh": 3
+ },
+ {
+  "commune": "Condette",
+  "lieux": 6,
+  "mh": 1
+ },
+ {
+  "commune": "Helfaut",
+  "lieux": 6,
+  "mh": 1
+ },
+ {
+  "commune": "Harnes",
+  "lieux": 5,
+  "mh": 0
+ },
+ {
+  "commune": "Lillers",
+  "lieux": 5,
+  "mh": 3
+ },
+ {
+  "commune": "Arques",
+  "lieux": 5,
+  "mh": 1
+ },
+ {
+  "commune": "Sallaumines",
+  "lieux": 5,
+  "mh": 1
+ },
+ {
+  "commune": "Mazingarbe",
+  "lieux": 5,
+  "mh": 3
+ },
+ {
+  "commune": "Saint-Laurent-Blangy",
+  "lieux": 5,
+  "mh": 0
+ },
+ {
+  "commune": "Dourges",
+  "lieux": 5,
+  "mh": 1
+ },
+ {
+  "commune": "Saint-Étienne-au-Mont",
+  "lieux": 5,
+  "mh": 1
+ },
+ {
+  "commune": "Wimille",
+  "lieux": 5,
+  "mh": 4
+ },
+ {
+  "commune": "Gonnehem",
+  "lieux": 5,
+  "mh": 2
+ },
+ {
+  "commune": "Ambleteuse",
+  "lieux": 5,
+  "mh": 2
+ },
+ {
+  "commune": "Longuenesse",
+  "lieux": 4,
+  "mh": 0
+ },
+ {
+  "commune": "Courrières",
+  "lieux": 4,
+  "mh": 1
+ },
+ {
+  "commune": "Billy-Montigny",
+  "lieux": 4,
+  "mh": 0
+ },
+ {
+  "commune": "Barlin",
+  "lieux": 4,
+  "mh": 1
+ },
+ {
+  "commune": "Leforest",
+  "lieux": 4,
+  "mh": 0
+ },
+ {
+  "commune": "Divion",
+  "lieux": 4,
+  "mh": 1
+ },
+ {
+  "commune": "Hersin-Coupigny",
+  "lieux": 4,
+  "mh": 0
+ },
+ {
+  "commune": "Noyelles-Godault",
+  "lieux": 4,
+  "mh": 0
+ },
+ {
+  "commune": "Sains-en-Gohelle",
+  "lieux": 4,
+  "mh": 0
+ },
+ {
+  "commune": "Saint-Martin-lez-Tatinghem",
+  "lieux": 4,
+  "mh": 2
+ },
+ {
+  "commune": "Marles-les-Mines",
+  "lieux": 4,
+  "mh": 1
+ },
+ {
+  "commune": "Billy-Berclau",
+  "lieux": 4,
+  "mh": 1
+ },
+ {
+  "commune": "Samer",
+  "lieux": 4,
+  "mh": 0
+ },
+ {
+  "commune": "Ardres",
+  "lieux": 4,
+  "mh": 3
+ },
+ {
+  "commune": "Saint-Léonard",
+  "lieux": 4,
+  "mh": 2
+ },
+ {
+  "commune": "Coquelles",
+  "lieux": 4,
+  "mh": 1
+ },
+ {
+  "commune": "Marœuil",
+  "lieux": 4,
+  "mh": 1
+ },
+ {
+  "commune": "Bouvigny-Boyeffles",
+  "lieux": 4,
+  "mh": 0
+ },
+ {
+  "commune": "Ablain-Saint-Nazaire",
+  "lieux": 4,
+  "mh": 2
+ },
+ {
+  "commune": "Croisilles",
+  "lieux": 4,
+  "mh": 0
+ },
+ {
+  "commune": "Tilloy-lès-Mofflaines",
+  "lieux": 4,
+  "mh": 0
+ },
+ {
+  "commune": "Bucquoy",
+  "lieux": 4,
+  "mh": 0
+ },
+ {
+  "commune": "Thérouanne",
+  "lieux": 4,
+  "mh": 1
+ },
+ {
+  "commune": "Fouquières-lès-Béthune",
+  "lieux": 4,
+  "mh": 1
+ },
+ {
+  "commune": "Gosnay",
+  "lieux": 4,
+  "mh": 2
+ },
+ {
+  "commune": "Fresnicourt-le-Dolmen",
+  "lieux": 4,
+  "mh": 3
+ },
+ {
+  "commune": "Audinghen",
+  "lieux": 4,
+  "mh": 3
+ },
+ {
+  "commune": "Doudeauville",
+  "lieux": 4,
+  "mh": 1
+ },
+ {
+  "commune": "Bénifontaine",
+  "lieux": 4,
+  "mh": 1
+ },
+ {
+  "commune": "Barly",
+  "lieux": 4,
+  "mh": 2
+ },
+ {
+  "commune": "Outreau",
+  "lieux": 3,
+  "mh": 0
+ },
+ {
+  "commune": "Marck",
+  "lieux": 3,
+  "mh": 1
+ },
+ {
+  "commune": "Isbergues",
+  "lieux": 3,
+  "mh": 1
+ },
+ {
+  "commune": "Libercourt",
+  "lieux": 3,
+  "mh": 1
+ },
+ {
+  "commune": "Guînes",
+  "lieux": 3,
+  "mh": 1
+ },
+ {
+  "commune": "Calonne-Ricouart",
+  "lieux": 3,
+  "mh": 0
+ },
+ {
+  "commune": "Lestrem",
+  "lieux": 3,
+  "mh": 1
+ },
+ {
+  "commune": "Blendecques",
+  "lieux": 3,
+  "mh": 2
+ },
+ {
+  "commune": "Évin-Malmaison",
+  "lieux": 3,
+  "mh": 1
+ },
+ {
+  "commune": "Vimy",
+  "lieux": 3,
+  "mh": 0
+ },
+ {
+  "commune": "Sailly-sur-la-Lys",
+  "lieux": 3,
+  "mh": 1
+ },
+ {
+  "commune": "Bapaume",
+  "lieux": 3,
+  "mh": 0
+ },
+ {
+  "commune": "Frévent",
+  "lieux": 3,
+  "mh": 2
+ },
+ {
+  "commune": "Labourse",
+  "lieux": 3,
+  "mh": 1
+ },
+ {
+  "commune": "Richebourg",
+  "lieux": 3,
+  "mh": 0
+ },
+ {
+  "commune": "Givenchy-en-Gohelle",
+  "lieux": 3,
+  "mh": 0
+ },
+ {
+  "commune": "Labeuvrière",
+  "lieux": 3,
+  "mh": 2
+ },
+ {
+  "commune": "Enquin-lez-Guinegatte",
+  "lieux": 3,
+  "mh": 0
+ },
+ {
+  "commune": "Auchy-lès-Hesdin",
+  "lieux": 3,
+  "mh": 1
+ },
+ {
+  "commune": "Oisy-le-Verger",
+  "lieux": 3,
+  "mh": 0
+ },
+ {
+  "commune": "Servins",
+  "lieux": 3,
+  "mh": 3
+ },
+ {
+  "commune": "Mont-Saint-Éloi",
+  "lieux": 3,
+  "mh": 1
+ },
+ {
+  "commune": "Saint-Inglevert",
+  "lieux": 3,
+  "mh": 1
+ },
+ {
+  "commune": "Bours",
+  "lieux": 3,
+  "mh": 1
+ },
+ {
+  "commune": "Fressin",
+  "lieux": 3,
+  "mh": 2
+ },
+ {
+  "commune": "Penin",
+  "lieux": 3,
+  "mh": 2
+ },
+ {
+  "commune": "Vieil-Hesdin",
+  "lieux": 3,
+  "mh": 2
+ },
+ {
+  "commune": "Étrun",
+  "lieux": 3,
+  "mh": 2
+ },
+ {
+  "commune": "Noyelle-Vion",
+  "lieux": 3,
+  "mh": 2
+ },
+ {
+  "commune": "Longvilliers",
+  "lieux": 3,
+  "mh": 2
+ },
+ {
+  "commune": "Tortefontaine",
+  "lieux": 3,
+  "mh": 1
+ },
+ {
+  "commune": "Flers",
+  "lieux": 3,
+  "mh": 2
+ },
+ {
+  "commune": "Wisques",
+  "lieux": 3,
+  "mh": 2
+ },
+ {
+  "commune": "Maizières",
+  "lieux": 3,
+  "mh": 1
+ },
+ {
+  "commune": "Willeman",
+  "lieux": 3,
+  "mh": 2
+ }
+]
