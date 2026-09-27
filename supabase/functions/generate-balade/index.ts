@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { collectFacts, findUnsourced, stripSentencesWith, type Fact } from "./facts.ts";
 
-const PROMPT_VERSION = "v3.1-facts";
+const PROMPT_VERSION = "v3.2-facts";
 
 const logSearchStat = async (row: {
   ville: string | null;
