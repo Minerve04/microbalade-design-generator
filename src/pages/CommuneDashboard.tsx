@@ -163,6 +163,25 @@ export default function CommuneDashboard() {
   const [from, setFrom] = useState<string>(toInputDate(sixMonthsAgo));
   const [to, setTo] = useState<string>(toInputDate(today));
 
+  // Trafic page commune + scans QR (période sélectionnée)
+  const [traffic, setTraffic] = useState<{ slug: string | null; qr_scans?: number; page_visits?: number; qr_balades?: number } | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.rpc("get_my_commune_traffic", {
+        p_from: new Date(`${from}T00:00:00`).toISOString(),
+        p_to: new Date(`${to}T23:59:59`).toISOString(),
+      });
+      if (!cancelled) setTraffic((data as any) ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, from, to]);
+  const qrRate =
+    traffic?.qr_scans ? Math.round(((traffic.qr_balades ?? 0) / traffic.qr_scans) * 100) : null;
+
   // Form state
   const [lienAction, setLienAction] = useState("");
   const [codePostal, setCodePostal] = useState("");
@@ -630,6 +649,14 @@ export default function CommuneDashboard() {
                   value={topMonuments.length.toString()}
                   sub="Affichés au moins une fois"
                 />
+                <StatCard icon={QrCode} label="Scans du QR code" value={(traffic?.qr_scans ?? 0).toString()} sub="Sur la période sélectionnée" />
+                <StatCard icon={MapPinned} label="Visites de votre page" value={(traffic?.page_visits ?? 0).toString()} sub={traffic?.slug ? `microbalade.fr/${traffic.slug}` : "Page non encore créée"} />
+                <StatCard
+                  icon={TrendingUp}
+                  label="Taux scan → balade"
+                  value={qrRate === null ? "—" : `${qrRate} %`}
+                  sub={`${traffic?.qr_balades ?? 0} balade(s) lancée(s) depuis un scan`}
+                />
               </div>
 
               <div className="bg-card border border-border rounded-2xl p-5 md:p-6">
@@ -895,7 +922,8 @@ export default function CommuneDashboard() {
           {tab === "qrcode" && (
             <CommuneQrCode
               communeName={profile?.nom_collectivite ?? "Microbalade"}
-              codePostal={profile?.code_postal ?? null}
+              slug={traffic?.slug ?? null}
+              logoUrl={profile?.logo_url ?? null}
             />
           )}
 
