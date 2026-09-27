@@ -498,7 +498,7 @@ export default function CommuneDashboard() {
                   <FileTextIcon size={16} /> Bon de commande / Chorus Pro
                 </button>
                 <button
-                  onClick={handlePay}
+                  onClick={() => handlePay()}
                   className="inline-flex items-center justify-center bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:opacity-90 transition"
                 >
                   Payer par carte
@@ -587,7 +587,7 @@ export default function CommuneDashboard() {
                       <FileTextIcon size={16} /> Bon de commande
                     </button>
                     <button
-                      onClick={handlePay}
+                      onClick={() => handlePay()}
                       className="inline-flex items-center justify-center bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 text-sm hover:opacity-90 transition"
                     >
                       Payer par carte
