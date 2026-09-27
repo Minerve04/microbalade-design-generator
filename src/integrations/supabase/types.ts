@@ -485,6 +485,13 @@ export type Database = {
     }
     Functions: {
       commune_is_subscribed: { Args: { _uid: string }; Returns: boolean }
+      commune_tier_info: {
+        Args: { _key: string }
+        Returns: {
+          label: string
+          prix: number
+        }[]
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
@@ -532,6 +539,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_pending_tier: { Args: { p_lookup_key: string }; Returns: undefined }
     }
     Enums: {
       app_role: "admin"
