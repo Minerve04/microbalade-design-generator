@@ -100,11 +100,6 @@
   "mh": 5
  },
  {
-  "commune": "Saint-Martin-Boulogne",
-  "lieux": 7,
-  "mh": 4
- },
- {
   "commune": "Oignies",
   "lieux": 7,
   "mh": 3
@@ -183,6 +178,11 @@
   "commune": "Gonnehem",
   "lieux": 5,
   "mh": 2
+ },
+ {
+  "commune": "Saint-Martin-Boulogne",
+  "lieux": 4,
+  "mh": 4
  },
  {
   "commune": "Lillers",
@@ -286,11 +286,6 @@
  },
  {
   "commune": "Ambleteuse",
-  "lieux": 4,
-  "mh": 2
- },
- {
-  "commune": "Ablain-Saint-Nazaire",
   "lieux": 4,
   "mh": 2
  },
