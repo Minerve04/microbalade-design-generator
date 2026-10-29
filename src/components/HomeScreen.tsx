@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import logo from "@/assets/logo.png";
 import { MapPin, Loader2, LocateFixed } from "lucide-react";
@@ -31,6 +31,9 @@ interface HomeScreenProps {
 }
 
 const HomeScreen = ({ onGenerate, loading, commune, initialLocation, notice }: HomeScreenProps) => {
+  const { slug } = useParams();
+  const [searchParams] = useSearchParams();
+  const isQr = searchParams.get("src") === "qr" || searchParams.get("source") === "qr";
   const [location, setLocation] = useState("");
   const [duration, setDuration] = useState(30);
   const [selected, setSelected] = useState<string[]>([]);
@@ -146,14 +149,17 @@ const HomeScreen = ({ onGenerate, loading, commune, initialLocation, notice }: H
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center px-5 py-12 pb-8 relative">
-      <nav className="absolute top-4 right-5 z-10">
-        <Link
-          to="/partenaires"
-          className="text-sm font-medium text-foreground/80 hover:text-primary transition-colors"
-        >
-          Partenaires
-        </Link>
-      </nav>
+      {/* Pas de lien « Partenaires » pour les visiteurs d'une commune (page /<commune> ou scan de QR code) */}
+      {!slug && !isQr && !commune && (
+        <nav className="absolute top-4 right-5 z-10">
+          <Link
+            to="/partenaires"
+            className="text-sm font-medium text-foreground/80 hover:text-primary transition-colors"
+          >
+            Partenaires
+          </Link>
+        </nav>
+      )}
       {commune ? (
         <Helmet>
           <title>{`Les microbalades de la Ville de ${commune.nom} — Microbalade`}</title>
