@@ -5,7 +5,7 @@
 // 4. L'IA écrit une étape par lieu, uniquement à partir des faits sourcés.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { findUnsourced, stripSentencesWith } from "../generate-balade/facts.ts";
+import { findUnsourced, stripSentencesWith } from "./facts.ts";
 
 const ENGINE_VERSION = "v2.0-poi-first";
 const WALK_M_PER_MIN = 83; // allure Google Maps
