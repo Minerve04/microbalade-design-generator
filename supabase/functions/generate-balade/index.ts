@@ -241,7 +241,7 @@ const computeOverlapRatio = (geometry: RouteGeometryPoint[]) => {
   return totalDistance > 0 ? repeatedDistance / totalDistance : 1;
 };
 
-// Itinéraire piéton : Géoplateforme IGN (bdtopo-osrm, piéton), OSRM public en secours.
+// Itinéraire piéton : Géoplateforme IGN (bdtopo-valhalla, piéton), OSRM public en secours.
 // On se fie à la DISTANCE ; la durée est recalculée à 83 m/min (allure Google Maps).
 const routeCounter = { calls: 0 };
 
@@ -261,7 +261,7 @@ const getWalkingRoute = async (coordinates: string[]): Promise<RouteMeasurement>
   const end = coordinates[coordinates.length - 1];
   const intermediates = coordinates.slice(1, -1).join("|");
   const url =
-    `https://data.geopf.fr/navigation/itineraire?resource=bdtopo-osrm&profile=pedestrian&optimization=shortest` +
+    `https://data.geopf.fr/navigation/itineraire?resource=bdtopo-valhalla&profile=pedestrian&optimization=shortest` +
     `&start=${start}&end=${end}&intermediates=${encodeURIComponent(intermediates)}` +
     `&geometryFormat=geojson&getSteps=false&getBbox=false&distanceUnit=meter&timeUnit=minute`;
   try {
