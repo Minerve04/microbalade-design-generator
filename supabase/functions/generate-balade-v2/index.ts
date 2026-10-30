@@ -11,7 +11,6 @@ const ENGINE_VERSION = "v2.0-poi-first";
 const WALK_M_PER_MIN = 83; // allure Google Maps
 const DETOUR = 1.35; // rapport distance réelle / vol d'oiseau en ville
 const STOP_MINUTES = 2; // temps passé à chaque arrêt
-const MAX_STOPS = 6;
 const MAX_ROUTE_CALLS = 5;
 const UA = { "User-Agent": "Microbalade/1.0 (contact@microbalade.com)" };
 const MERIMEE_RESOURCE = "3a52af4a-f9da-4dcc-8110-b07774dfb3bc";
@@ -147,7 +146,9 @@ const scorePoi = (p: Poi, interests: string[]) => {
   const txt = norm(`${p.nom} ${p.texte}`);
   const bonus = interests.reduce((s, i) => s + (INTEREST_WORDS[i]?.test(txt) ? 2 : 0), 0);
   const richness = Math.min(2, p.texte.length / 300);
-  return base + bonus + richness;
+  // Intitulés génériques de la base Mérimée (« Maison », « Immeuble ») : moins parlants pour un promeneur.
+  const generic = /^(maison|immeuble|hotel particulier|ferme|croix|borne)\b/.test(norm(p.nom)) ? -2 : 0;
+  return base + bonus + richness + generic;
 };
 
 // Longueur d'une boucle départ → lieux → départ (vol d'oiseau).
@@ -167,10 +168,10 @@ const bestInsertion = (o: Pt, stops: Poi[], p: Poi) => {
   return best;
 };
 
-const choose = (o: Pt, pois: Poi[], budgetM: number) => {
+const choose = (o: Pt, pois: Poi[], budgetM: number, maxStops: number) => {
   let stops: Poi[] = [];
   const pool = [...pois];
-  while (stops.length < MAX_STOPS && pool.length) {
+  while (stops.length < maxStops && pool.length) {
     let pick: { p: Poi; idx: number; len: number; ratio: number } | null = null;
     const cur = loopLen(o, stops);
     for (const p of pool) {
@@ -197,7 +198,7 @@ const route = async (pts: Pt[]) => {
   const mid = pts.slice(1, -1).map(fmt).join("|");
   try {
     const d = await getJson(
-      `https://data.geopf.fr/navigation/itineraire?resource=bdtopo-osrm&profile=pedestrian&optimization=shortest&start=${start}&end=${end}&intermediates=${encodeURIComponent(mid)}&geometryFormat=geojson&getSteps=false&getBbox=false&distanceUnit=meter&timeUnit=minute`,
+      `https://data.geopf.fr/navigation/itineraire?resource=bdtopo-valhalla&profile=pedestrian&optimization=shortest&start=${start}&end=${end}&intermediates=${encodeURIComponent(mid)}&geometryFormat=geojson&getSteps=false&getBbox=false&distanceUnit=meter&timeUnit=minute`,
       7000,
     );
     if (typeof d?.distance === "number") return { meters: Math.round(d.distance), geometry: d.geometry.coordinates as [number, number][] };
@@ -310,11 +311,12 @@ serve(async (req) => {
     const pois: Poi[] = [];
     for (const p of all.sort((a, b) => rank[a.kind] - rank[b.kind])) {
       if (dist(o, p) > radius) continue;
-      if (pois.some((q) => norm(q.nom) === norm(p.nom) || dist(q, p) < 40)) continue;
+      if (pois.some((q) => norm(q.nom) === norm(p.nom) || dist(q, p) < 60)) continue;
       pois.push({ ...p, score: scorePoi(p, interests) });
     }
 
-    let stops = choose(o, pois, budgetM);
+    const maxStops = Math.max(3, Math.min(10, Math.round(duration / 7)));
+    let stops = choose(o, pois, budgetM, maxStops);
     if (!stops.length) {
       return json({ error: "Aucun lieu remarquable connu à distance de marche. Essayez une durée plus longue.", engine: ENGINE_VERSION, candidates: pois.length, errors });
     }
