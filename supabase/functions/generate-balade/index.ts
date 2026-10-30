@@ -754,7 +754,7 @@ serve(async (req) => {
       if (bestCloseToTarget) break;
     }
 
-    const selected: CandidateLoop | null = bestCloseToTarget || bestWithinHard || bestLowOverlap;
+    const selected = (bestCloseToTarget || bestWithinHard || bestLowOverlap) as CandidateLoop | null;
     if (!selected) {
       return fail(
         "Impossible de tracer une vraie boucle à pied satisfaisante depuis cette adresse sans repasser sur ses pas. Essayez un autre point de départ proche ou une durée légèrement plus longue."
