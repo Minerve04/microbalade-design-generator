@@ -23,8 +23,10 @@ export function createStripeClient(env: StripeEnv): Stripe {
 
   return new Stripe(connectionApiKey, {
     apiVersion: "2026-03-25.dahlia",
-    httpClient: Stripe.createFetchHttpClient((input: RequestInfo, init?: RequestInit) => {
-      const gatewayUrl = input.toString().replace("https://api.stripe.com", GATEWAY_STRIPE_BASE);
+    // The gateway client must accept whatever request shape the Stripe SDK passes
+    // (URL | Request | string), so the callback stays loosely typed on purpose.
+    httpClient: Stripe.createFetchHttpClient((input: any, init: any) => {
+      const gatewayUrl = String(input).replace("https://api.stripe.com", GATEWAY_STRIPE_BASE);
       return fetch(gatewayUrl, {
         ...init,
         headers: {
