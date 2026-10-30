@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.submit-pilot-request]
 verify_jwt = false
+
+[functions.generate-balade-v2]
+verify_jwt = false
