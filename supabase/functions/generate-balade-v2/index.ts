@@ -7,7 +7,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { findUnsourced, stripSentencesWith } from "./facts.ts";
 
-const ENGINE_VERSION = "v2.0-poi-first";
+const ENGINE_VERSION = "v2.1-poi-first";
 const WALK_M_PER_MIN = 83; // allure Google Maps
 const DETOUR = 1.35; // rapport distance réelle / vol d'oiseau en ville
 const STOP_MINUTES = 2; // temps passé à chaque arrêt
@@ -252,19 +252,31 @@ const ai = async (p: string): Promise<{ intro: string; steps: string[] } | null>
         messages: [{ role: "user", content: p }],
         response_format: { type: "json_object" },
         temperature: 0.3,
-        max_tokens: 2200,
+        // Gemini 2.5 compte son raisonnement dans max_tokens : une limite basse tronque le JSON.
+        max_tokens: 8000,
       }),
-    }, 25000);
-    if (!r.ok) return null;
+    }, 30000);
+    if (!r.ok) {
+      aiError = `HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`;
+      return null;
+    }
     const d = await r.json();
-    const c = JSON.parse(d?.choices?.[0]?.message?.content ?? "{}");
-    if (!Array.isArray(c.steps)) return null;
+    const raw = String(d?.choices?.[0]?.message?.content ?? "");
+    const cleaned = raw.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "");
+    const start = cleaned.indexOf("{"), end = cleaned.lastIndexOf("}");
+    const c = JSON.parse(start >= 0 && end > start ? cleaned.slice(start, end + 1) : cleaned);
+    if (!Array.isArray(c.steps)) {
+      aiError = `réponse sans steps (finish_reason ${d?.choices?.[0]?.finish_reason})`;
+      return null;
+    }
     return { intro: String(c.intro ?? ""), steps: c.steps.map((s: any) => String(s?.description ?? "").trim()) };
   } catch (e) {
+    aiError = e instanceof Error ? e.message : String(e);
     console.warn("ai", e);
     return null;
   }
 };
+let aiError: string | null = null;
 
 // ---------- Handler ----------
 
@@ -272,6 +284,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   const t0 = Date.now();
   routeCalls = 0;
+  aiError = null;
   const url = Deno.env.get("SUPABASE_URL"), sk = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const admin = url && sk ? createClient(url, sk) : null;
   const timings: Record<string, number> = {};
@@ -374,6 +387,7 @@ serve(async (req) => {
         top_candidates: [...pois].sort((a, b) => b.score - a.score).slice(0, 12).map((p) => `${p.nom} (${p.kind}, ${Math.round(dist(o, p))} m, score ${p.score.toFixed(1)})`),
         route_calls: routeCalls,
         unsourced_first: unsourced,
+        ai_error: aiError,
         errors,
         timings: { ...timings, total_ms: Date.now() - t0 },
       },
